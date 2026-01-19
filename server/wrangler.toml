@@ -1,6 +1,7 @@
 name = "pushover-scheduler"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
+assets = { directory = "../web/dist" }
 
 # Durable Objects 配置
 [[durable_objects.bindings]]

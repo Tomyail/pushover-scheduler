@@ -43,4 +43,6 @@ export interface Env {
   PUSHOVER_API_TOKEN: string;
   // Server time zone (IANA name or UTC)
   TIMEZONE?: string;
+  // Static assets binding
+  ASSETS: Fetcher;
 }

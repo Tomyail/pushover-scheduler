@@ -9,8 +9,14 @@ export default {
       const url = new URL(request.url);
       const path = url.pathname;
 
-      // 健康检查
-      if (path === '/health' || path === '/') {
+      // 路由到 Scheduler Durable Object
+      if (path.startsWith('/schedule') || path.startsWith('/tasks')) {
+        const id = env.SCHEDULER.idFromName('scheduler');
+        const obj = env.SCHEDULER.get(id);
+        return await obj.fetch(request);
+      }
+
+      if (path === '/health') {
         return new Response(JSON.stringify({
           status: 'ok',
           service: 'Pushover Scheduler',
@@ -20,11 +26,8 @@ export default {
         });
       }
 
-      // 路由到 Scheduler Durable Object
-      if (path.startsWith('/schedule') || path.startsWith('/tasks')) {
-        const id = env.SCHEDULER.idFromName('scheduler');
-        const obj = env.SCHEDULER.get(id);
-        return await obj.fetch(request);
+      if (env.ASSETS) {
+        return await env.ASSETS.fetch(request);
       }
 
       return new Response('Not found', { status: 404 });
