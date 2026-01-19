@@ -1,0 +1,20 @@
+{
+  "name": "pushover-scheduler",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for scheduled Pushover notifications",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "bash test.sh",
+    "test:manual": "bash test-manual.sh"
+  },
+  "keywords": ["cloudflare", "worker", "pushover", "scheduler"],
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^3.94.0"
+  }
+}
