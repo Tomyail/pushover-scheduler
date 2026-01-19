@@ -10,11 +10,16 @@
     "test": "bash test.sh",
     "test:manual": "bash test-manual.sh"
   },
-  "keywords": ["cloudflare", "worker", "pushover", "scheduler"],
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "pushover",
+    "scheduler"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
     "typescript": "^5.7.2",
-    "wrangler": "^3.94.0"
+    "wrangler": "^4.59.2"
   }
 }
