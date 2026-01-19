@@ -73,9 +73,6 @@ export class SchedulerDO implements DurableObject {
         return await this.handleSchedule(request);
       } else if (path === '/tasks' && request.method === 'GET') {
         return await this.handleListTasks();
-      } else if (path === '/trigger-alarm' && request.method === 'POST') {
-        // 手动触发 alarm（仅用于本地测试）
-        return await this.handleTriggerAlarm();
       } else if (path.startsWith('/tasks/') && request.method === 'DELETE') {
         const taskId = path.split('/')[2];
         return await this.handleDeleteTask(taskId);
@@ -162,32 +159,6 @@ export class SchedulerDO implements DurableObject {
     return new Response(JSON.stringify({ tasks }), {
       headers: { 'Content-Type': 'application/json' },
     });
-  }
-
-  /**
-   * 手动触发 alarm（仅用于本地测试）
-   */
-  private async handleTriggerAlarm(): Promise<Response> {
-    try {
-      console.log('[MANUAL TRIGGER] Executing alarm manually...');
-      await this.alarm();
-      const tasks = await this.listAllTasks();
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Alarm triggered successfully',
-        remainingTasks: tasks.length
-      }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (error) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
   }
 
   /**

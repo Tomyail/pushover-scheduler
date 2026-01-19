@@ -27,21 +27,6 @@ export default {
         return await obj.fetch(request);
       }
 
-      // /trigger-alarm 仅在本地开发环境允许（用于测试）
-      if (path.startsWith('/trigger-alarm')) {
-        const url = new URL(request.url);
-        const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
-        if (!isLocalhost) {
-          return new Response(JSON.stringify({ error: 'Forbidden: trigger-alarm is only available in development' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        const id = env.SCHEDULER.idFromName('scheduler');
-        const obj = env.SCHEDULER.get(id);
-        return await obj.fetch(request);
-      }
-
       return new Response('Not found', { status: 404 });
     } catch (error) {
       return new Response(JSON.stringify({

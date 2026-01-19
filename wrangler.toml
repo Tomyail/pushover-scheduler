@@ -17,9 +17,19 @@ new_sqlite_classes = ["SchedulerDO"]
 PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
 
 [observability]
-[observability.logs]
 enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
 invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
 # 敏感信息使用 secrets（更安全，不会提交到 git）
 # 在部署前运行：
 # wrangler secret put PUSHOVER_USER_KEY
