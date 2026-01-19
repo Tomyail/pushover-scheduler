@@ -15,6 +15,7 @@ new_sqlite_classes = ["SchedulerDO"]
 # 环境变量（请填入你的密钥）
 [vars]
 PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
+TIMEZONE = "Asia/Shanghai"
 
 [observability]
 enabled = false

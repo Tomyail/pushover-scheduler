@@ -24,6 +24,9 @@ curl -s -X POST "$BASE_URL/schedule" \
     \"schedule\": {
       \"type\": \"once\",
       \"datetime\": \"$SOON_TIME\"
+    },
+    \"pushover\": {
+      \"ttl\": 30
     }
   }" | jq '.'
 echo ""
@@ -39,22 +42,43 @@ curl -s -X POST "$BASE_URL/schedule" \
     \"schedule\": {
       \"type\": \"once\",
       \"datetime\": \"$FUTURE_TIME\"
+    },
+    \"pushover\": {
+      \"ttl\": 30
     }
   }" | jq '.'
 echo ""
 
-# 4. 再次查看任务
-echo "4️⃣  再次查看所有任务..."
+# 4. 创建一个当天 23:23 执行的任务（若已过则顺延到次日）
+echo "4️⃣  创建一个 23:23 执行的任务..."
+TIME_2323=$(python3 -c "from datetime import datetime, timedelta; from zoneinfo import ZoneInfo; tz=ZoneInfo('Asia/Shanghai'); now=datetime.now(tz); target=now.replace(hour=23, minute=23, second=0, microsecond=0); target=target if target>now else target+timedelta(days=1); print(target.strftime('%Y-%m-%dT%H:%M:%S'))")
+curl -s -X POST "$BASE_URL/schedule" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"message\": \"23:23 执行的任务 - $(python3 -c "from datetime import datetime; from zoneinfo import ZoneInfo; print(datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%H:%M:%S'))")\",
+    \"title\": \"定时测试\",
+    \"schedule\": {
+      \"type\": \"once\",
+      \"datetime\": \"$TIME_2323\"
+    },
+    \"pushover\": {
+      \"ttl\": 30
+    }
+  }" | jq '.'
+echo ""
+
+# 5. 再次查看任务
+echo "5️⃣  再次查看所有任务..."
 sleep 1
 curl -s "$BASE_URL/tasks" | jq '.'
 echo ""
 
-# 5. 等待 12 秒执行
-echo "5️⃣  等待 12 秒执行通知..."
+# 6. 等待 12 秒执行
+echo "6️⃣  等待 12 秒执行通知..."
 sleep 12
 
-# 6. 查看剩余任务
-echo "6️⃣  查看剩余任务（一次性任务应该已被删除）..."
+# 7. 查看剩余任务
+echo "7️⃣  查看剩余任务（一次性任务应该已被删除）..."
 curl -s "$BASE_URL/tasks" | jq '.'
 echo ""
 

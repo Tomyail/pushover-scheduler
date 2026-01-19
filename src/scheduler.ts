@@ -136,15 +136,17 @@ export class SchedulerDO implements DurableObject {
     // 存储任务
     await this.putTask(`task:${taskId}`, task);
 
+    const timeZone = this.env.TIMEZONE || 'UTC';
+
     // 重新计算所有任务的最早 Alarm，避免覆盖其他任务的 alarm
     const tasks = await this.listAllTasks();
 
-    const nextAlarmTime = this.findEarliestRunTime(tasks);
+    const nextAlarmTime = this.findEarliestRunTime(tasks, timeZone);
     if (nextAlarmTime) {
       await this.state.storage.setAlarm(nextAlarmTime);
     }
 
-    const taskScheduledTime = this.calculateNextRunTime(task.schedule);
+    const taskScheduledTime = this.calculateNextRunTime(task.schedule, timeZone);
     return new Response(JSON.stringify({ taskId, scheduledTime: taskScheduledTime }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' },
@@ -177,9 +179,10 @@ export class SchedulerDO implements DurableObject {
   async alarm(): Promise<void> {
     const tasks = await this.listAllTasks();
     const now = new Date();
+    const timeZone = this.env.TIMEZONE || 'UTC';
 
     // 找出所有应该运行的任务
-    const tasksToRun = tasks.filter(task => this.shouldRunTask(task, now));
+    const tasksToRun = tasks.filter(task => this.shouldRunTask(task, now, timeZone));
 
     // 并发执行所有任务（提升性能）
     await Promise.all(
@@ -211,7 +214,7 @@ export class SchedulerDO implements DurableObject {
     const updatedTasks = await this.listAllTasks();
 
     // 为所有任务找到最早的下次运行时间并设置 Alarm
-    const nextRun = this.findEarliestRunTime(updatedTasks);
+    const nextRun = this.findEarliestRunTime(updatedTasks, timeZone);
     if (nextRun) {
       await this.state.storage.setAlarm(nextRun);
     }
@@ -220,15 +223,15 @@ export class SchedulerDO implements DurableObject {
   /**
    * 检查任务是否应该在指定时间运行
    */
-  private shouldRunTask(task: Task, now: Date): boolean {
+  private shouldRunTask(task: Task, now: Date, timeZone: string): boolean {
     if (task.schedule.type === 'once') {
-      const scheduledTime = new Date(task.schedule.datetime!);
+      const scheduledTime = this.parseDateTimeInTimeZone(task.schedule.datetime!, timeZone);
       return now >= scheduledTime;
     } else if (task.schedule.type === 'repeat') {
       // 对于重复任务，检查是否已经过了下次运行时间
       // 从上次运行时间开始，找到第一个应该在现在之前运行的时间
       const lastRun = task.lastRun ? new Date(task.lastRun) : new Date(0); // 默认从 epoch 开始
-      const nextScheduled = this.getNextCronTimeAfter(task.schedule.cron!, lastRun);
+      const nextScheduled = this.getNextCronTimeAfter(task.schedule.cron!, lastRun, timeZone);
       return now >= nextScheduled;
     }
     return false;
@@ -237,11 +240,11 @@ export class SchedulerDO implements DurableObject {
   /**
    * 计算下次运行时间
    */
-  private calculateNextRunTime(schedule: ScheduleConfig): Date | null {
+  private calculateNextRunTime(schedule: ScheduleConfig, timeZone: string): Date | null {
     if (schedule.type === 'once') {
-      return new Date(schedule.datetime!);
+      return this.parseDateTimeInTimeZone(schedule.datetime!, timeZone);
     } else if (schedule.type === 'repeat') {
-      return this.getNextCronTime(schedule.cron!);
+      return this.getNextCronTime(schedule.cron!, timeZone);
     }
     return null;
   }
@@ -249,11 +252,11 @@ export class SchedulerDO implements DurableObject {
   /**
    * 找到所有任务中的最早下次运行时间（包括一次性任务和重复任务）
    */
-  private findEarliestRunTime(tasks: Task[]): Date | null {
+  private findEarliestRunTime(tasks: Task[], timeZone: string): Date | null {
     let earliest: Date | null = null;
 
     for (const task of tasks) {
-      const next = this.calculateNextRunTime(task.schedule);
+      const next = this.calculateNextRunTime(task.schedule, timeZone);
       if (next && (!earliest || next < earliest)) {
         earliest = next;
       }
@@ -266,17 +269,18 @@ export class SchedulerDO implements DurableObject {
    * 简单的 cron 匹配检查
    * 支持格式: 分 时 日 月 周
    */
-  private matchesCron(cron: string, date: Date): boolean {
+  private matchesCron(cron: string, date: Date, timeZone: string): boolean {
     const parts = cron.split(/\s+/);
     if (parts.length !== 5) return false;
 
     const [minute, hour, day, month, weekday] = parts;
 
-    const m = date.getMinutes();
-    const h = date.getHours();
-    const d = date.getDate();
-    const mo = date.getMonth() + 1;
-    const wd = date.getDay();
+    const local = this.getLocalTimeParts(date, timeZone);
+    const m = local.minute;
+    const h = local.hour;
+    const d = local.day;
+    const mo = local.month;
+    const wd = local.weekday;
 
     return this.matchCronPart(minute, m) &&
            this.matchCronPart(hour, h) &&
@@ -310,14 +314,13 @@ export class SchedulerDO implements DurableObject {
   /**
    * 获取下一个 cron 时间
    */
-  private getNextCronTime(cron: string): Date {
+  private getNextCronTime(cron: string, timeZone: string): Date {
     const now = new Date();
-    const next = new Date(now);
-    next.setMinutes(next.getMinutes() + 1);
+    const next = new Date(now.getTime() + 60_000);
 
     // 简单实现：向前检查最多一年
     for (let i = 0; i < 525600; i++) {
-      if (this.matchesCron(cron, next)) {
+      if (this.matchesCron(cron, next, timeZone)) {
         return next;
       }
       next.setMinutes(next.getMinutes() + 1);
@@ -332,13 +335,12 @@ export class SchedulerDO implements DurableObject {
   /**
    * 获取指定时间之后的下一个 cron 时间
    */
-  private getNextCronTimeAfter(cron: string, after: Date): Date {
-    const next = new Date(after);
-    next.setMinutes(next.getMinutes() + 1);
+  private getNextCronTimeAfter(cron: string, after: Date, timeZone: string): Date {
+    const next = new Date(after.getTime() + 60_000);
 
     // 简单实现：向前检查最多一年
     for (let i = 0; i < 525600; i++) {
-      if (this.matchesCron(cron, next)) {
+      if (this.matchesCron(cron, next, timeZone)) {
         return next;
       }
       next.setMinutes(next.getMinutes() + 1);
@@ -348,5 +350,90 @@ export class SchedulerDO implements DurableObject {
     const fallback = new Date(after);
     fallback.setHours(fallback.getHours() + 1);
     return fallback;
+  }
+
+  private parseDateTimeInTimeZone(value: string, timeZone: string): Date {
+    if (this.hasTimeZoneDesignator(value)) {
+      return new Date(value);
+    }
+
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) {
+      return new Date(value);
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = match[6] ? Number(match[6]) : 0;
+
+    const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    const offsetMinutes = this.getTimeZoneOffsetMinutes(utcGuess, timeZone);
+    return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
+  }
+
+  private hasTimeZoneDesignator(value: string): boolean {
+    return /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+  }
+
+  private getLocalTimeParts(date: Date, timeZone: string): {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+    weekday: number;
+  } {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      weekday: 'short',
+    });
+
+    const parts = formatter.formatToParts(date);
+    const lookup = new Map(parts.map(part => [part.type, part.value]));
+    const weekdayMap: Record<string, number> = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
+    };
+
+    const weekdayLabel = lookup.get('weekday') || 'Sun';
+
+    return {
+      year: Number(lookup.get('year')),
+      month: Number(lookup.get('month')),
+      day: Number(lookup.get('day')),
+      hour: Number(lookup.get('hour')),
+      minute: Number(lookup.get('minute')),
+      second: Number(lookup.get('second')),
+      weekday: weekdayMap[weekdayLabel] ?? 0,
+    };
+  }
+
+  private getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
+    const parts = this.getLocalTimeParts(date, timeZone);
+    const localAsUtc = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second
+    );
+    return (localAsUtc - date.getTime()) / 60_000;
   }
 }

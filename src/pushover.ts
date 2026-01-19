@@ -20,15 +20,11 @@ export class PushoverClient {
     formData.append('token', this.apiToken);
     formData.append('message', params.message);
 
-    if (params.title) formData.append('title', params.title);
-    if (params.priority !== undefined) formData.append('priority', params.priority.toString());
-    if (params.sound) formData.append('sound', params.sound);
-    if (params.device) formData.append('device', params.device);
-    if (params.url) formData.append('url', params.url);
-    if (params.url_title) formData.append('url_title', params.url_title);
-    if (params.html !== undefined) formData.append('html', params.html.toString());
-    if (params.expire !== undefined) formData.append('expire', params.expire.toString());
-    if (params.retry !== undefined) formData.append('retry', params.retry.toString());
+    for (const [key, value] of Object.entries(params)) {
+      if (key === 'user' || key === 'token' || key === 'message') continue;
+      if (value === undefined || value === null) continue;
+      formData.append(key, String(value));
+    }
 
     try {
       const response = await fetch(this.apiUrl, {

@@ -8,19 +8,10 @@ export interface ScheduleConfig {
   cron?: string; // cron 表达式，仅 repeat 类型需要
 }
 
-// Pushover API 参数
+// Pushover API 参数（允许任意字段）
 export interface PushoverParams {
   message: string;
-  title?: string;
-  priority?: number;
-  sound?: string;
-  device?: string;
-  url?: string;
-  url_title?: string;
-  html?: number;
-  attachment?: string;
-  expire?: number;
-  retry?: number;
+  [key: string]: string | number | boolean | undefined;
 }
 
 // 完整的请求体
@@ -28,7 +19,7 @@ export interface ScheduleRequest {
   message: string;
   title?: string;
   schedule: ScheduleConfig;
-  pushover?: Partial<Omit<PushoverParams, 'message'>>;
+  pushover?: Record<string, string | number | boolean>;
 }
 
 // 任务状态（存储在 Durable Object 中）
@@ -37,7 +28,7 @@ export interface Task {
   message: string;
   title?: string;
   schedule: ScheduleConfig;
-  pushover?: Partial<Omit<PushoverParams, 'message'>>;
+  pushover?: Record<string, string | number | boolean>;
   createdAt: string;
   lastRun?: string; // 上次运行时间（ISO 8601），用于处理延迟触发的 alarm
 }
@@ -50,4 +41,6 @@ export interface Env {
   PUSHOVER_API_URL: string;
   PUSHOVER_USER_KEY: string;
   PUSHOVER_API_TOKEN: string;
+  // Server time zone (IANA name or UTC)
+  TIMEZONE?: string;
 }
