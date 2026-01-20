@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "dev": "pnpm dev:server & pnpm dev:web",
     "dev:server": "pnpm -C server dev",
     "dev:web": "pnpm -C web dev",
     "build:web": "pnpm -C web build",
