@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { ScheduleRequest, Task, ExecutionLog } from './types';
 
 export const api = axios.create({
-  baseURL: '',
+  baseURL: '/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -12,7 +12,7 @@ export const api = axios.create({
 export async function login(password: string): Promise<void> {
   const formData = new FormData();
   formData.append('password', password);
-  const response = await fetch('/login', {
+  const response = await fetch('/api/login', {
     method: 'POST',
     headers: {
       'Accept': 'application/json',

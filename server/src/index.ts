@@ -11,10 +11,8 @@ const app = new Hono<{ Bindings: Env }>();
 // Auth Middleware
 const authMiddleware = async (c: any, next: any) => {
   const secret = c.env.AUTH_PASSWORD;
-  
   const authHeader = c.req.header('Authorization');
   const cookieToken = getCookie(c, 'auth');
-  
   const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : cookieToken;
 
   if (!token) return c.json({ error: 'Unauthorized: No token provided' }, 401);
@@ -25,50 +23,34 @@ const authMiddleware = async (c: any, next: any) => {
   } catch (err) {
     console.error('[AUTH ERROR]', err);
   }
-
   return c.json({ error: 'Unauthorized: Invalid token' }, 401);
 };
 
-// Login
-app.post('/login', async (c) => {
-  const secret = c.env.AUTH_PASSWORD;
-  const contentType = c.req.header('Content-Type') || '';
-  let password = '';
+const api = new Hono<{ Bindings: Env }>();
 
+// Login
+api.post('/login', async (c) => {
+  const secret = c.env.AUTH_PASSWORD;
+  let password = '';
   try {
+    const contentType = c.req.header('Content-Type') || '';
     if (contentType.includes('application/json')) {
-      const body = await c.req.json();
-      password = body.password;
+      password = (await c.req.json()).password;
     } else {
-      const formData = await c.req.formData();
-      password = formData.get('password') as string;
+      password = (await c.req.formData()).get('password') as string;
     }
-  } catch (e) {
-    console.error('[LOGIN PARSE ERROR]', e);
-  }
+  } catch {}
 
   if (password && password === secret) {
-    const payload = {
-      authorized: true,
-      exp: Math.floor(Date.now() / 1000) + (86400 * 30),
-    };
-    const token = await sign(payload, secret, 'HS256');
-    
-    setCookie(c, 'auth', token, {
-      httpOnly: true,
-      path: '/',
-      maxAge: 2592000,
-      sameSite: 'Lax',
-    });
-    
+    const token = await sign({ authorized: true, exp: Math.floor(Date.now() / 1000) + (86400 * 30) }, secret, 'HS256');
+    setCookie(c, 'auth', token, { httpOnly: true, path: '/', maxAge: 2592000, sameSite: 'Lax' });
     return c.json({ success: true, token });
   }
-
   return c.json({ error: 'Invalid password' }, 401);
 });
 
 // Logout
-app.post('/logout', (c) => {
+api.post('/logout', (c) => {
   setCookie(c, 'auth', '', { httpOnly: true, path: '/', maxAge: 0, sameSite: 'Lax' });
   return c.json({ success: true });
 });
@@ -76,16 +58,23 @@ app.post('/logout', (c) => {
 // DO Handler
 const doHandler = async (c: any) => {
   const id = c.env.SCHEDULER.idFromName('scheduler');
-  return await c.env.SCHEDULER.get(id).fetch(c.req.raw.clone());
+  const obj = c.env.SCHEDULER.get(id);
+  
+  // CRITICAL: When forwarding to DO, we must strip the "/api" prefix 
+  // because the Hono app INSIDE the DO doesn't know about it.
+  const url = new URL(c.req.url);
+  url.pathname = url.pathname.replace(/^\/api/, '');
+  
+  return await obj.fetch(new Request(url.toString(), c.req.raw.clone()));
 };
 
-app.all('/schedule', authMiddleware, doHandler);
-app.all('/schedule/*', authMiddleware, doHandler);
-app.all('/tasks', authMiddleware, doHandler);
-app.all('/tasks/*', authMiddleware, doHandler);
+api.all('/schedule', authMiddleware, doHandler);
+api.all('/schedule/*', authMiddleware, doHandler);
+api.all('/tasks', authMiddleware, doHandler);
+api.all('/tasks/*', authMiddleware, doHandler);
+api.get('/health', (c) => c.json({ status: 'ok', version: '1.2.6' }));
 
-// Public Routes
-app.get('/health', (c) => c.json({ status: 'ok', version: '1.2.4' }));
+app.route('/api', api);
 
 // Assets
 app.get('*', async (c) => {

@@ -11,10 +11,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/login': 'http://127.0.0.1:8787',
-      '/logout': 'http://127.0.0.1:8787',
-      '/schedule': 'http://127.0.0.1:8787',
-      '/tasks': 'http://127.0.0.1:8787',
+      '/api': 'http://127.0.0.1:8787',
     },
   },
 });
