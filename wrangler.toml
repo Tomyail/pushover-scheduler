@@ -1,0 +1,25 @@
+name = "pushover-scheduler"
+main = "server/src/index.ts"
+compatibility_date = "2024-01-01"
+assets = { directory = "web/dist" }
+
+# Durable Objects configuration
+[[durable_objects.bindings]]
+name = "SCHEDULER"
+class_name = "SchedulerDO"
+
+# Migration configuration (SQLite classes)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SchedulerDO"]
+
+# Public environment variables
+[vars]
+PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
+TIMEZONE = "Asia/Shanghai"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
