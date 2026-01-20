@@ -23,14 +23,14 @@ export default function App() {
   const [datetimeValue, setDatetimeValue] = useState('');
   const [sendingExtras, setSendingExtras] = useState('{"sound":"pushover"}');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
+  const [showLogin, setShowLogin] = useState(true);
   const queryClient = useQueryClient();
 
   const { data: tasks = [], isLoading, error } = useQuery({
     queryKey: ['tasks'],
     queryFn: listTasks,
-    enabled: isLoggedIn,
+    enabled: !showLogin,
   });
 
   const createMutation = useMutation({
@@ -50,7 +50,7 @@ export default function App() {
   const loginMutation = useMutation({
     mutationFn: () => login(password),
     onSuccess: () => {
-      setIsLoggedIn(true);
+      setShowLogin(false);
       setPassword('');
     },
   });
@@ -115,7 +115,7 @@ export default function App() {
   const isFormValid = form.message.trim() &&
     (scheduleType === 'once' ? datetimeValue : cronValue.trim());
 
-  if (!isLoggedIn) {
+  if (showLogin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 p-4">
         <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
@@ -175,8 +175,7 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   document.cookie = 'auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                  setIsLoggedIn(false);
-                  window.location.href = '/';
+                  setShowLogin(true);
                 }}
               >
                 Logout

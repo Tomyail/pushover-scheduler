@@ -3,8 +3,7 @@ import { SchedulerDO } from './scheduler';
 
 export { SchedulerDO };
 
-function isAuthenticated(request: Request, password: string | undefined): boolean {
-  if (!password) return true;
+function isAuthenticated(request: Request, password: string): boolean {
   const cookie = request.headers.get('Cookie');
   if (!cookie) return false;
   const match = cookie.match(/auth=([^;]+)/);
@@ -111,6 +110,13 @@ function getLoginPage(error?: string): Response {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (!env.AUTH_PASSWORD) {
+      return new Response(JSON.stringify({ error: 'AUTH_PASSWORD is not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     try {
       const url = new URL(request.url);
       const path = url.pathname;
@@ -139,7 +145,7 @@ export default {
       }
 
       // 检查认证（登录页和 health 接口除外）
-      if (env.AUTH_PASSWORD && !isAuthenticated(request, env.AUTH_PASSWORD) && path !== '/health') {
+      if (!isAuthenticated(request, env.AUTH_PASSWORD) && path !== '/health') {
         // 如果是 JSON 请求（API），返回 401
         if (path.startsWith('/api') || 
             path.startsWith('/schedule') || 
