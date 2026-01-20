@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, deleteTask, listTasks, getTaskLogs, login } from './api';
+import { createTask, deleteTask, listTasks, getTaskLogs, login, logout } from './api';
 import type { ScheduleRequest, ScheduleType, Task, ExecutionLog } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
@@ -27,10 +27,29 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(true);
   const queryClient = useQueryClient();
 
+  // Tasks Query
   const { data: tasks = [], isLoading, error } = useQuery({
     queryKey: ['tasks'],
     queryFn: listTasks,
     enabled: !showLogin,
+    retry: false,
+  });
+
+  // Check Auth Query - runs on mount
+  useQuery({
+    queryKey: ['checkAuth'],
+    queryFn: async () => {
+      try {
+        await listTasks();
+        setShowLogin(false);
+        return true;
+      } catch {
+        setShowLogin(true);
+        return false;
+      }
+    },
+    retry: false,
+    staleTime: Infinity,
   });
 
   const createMutation = useMutation({
@@ -48,10 +67,19 @@ export default function App() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: () => login(password),
+    mutationFn: (pwd: string) => login(pwd),
     onSuccess: () => {
       setShowLogin(false);
       setPassword('');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      setShowLogin(true);
+      queryClient.clear();
     },
   });
 
@@ -125,7 +153,7 @@ export default function App() {
               Authentication required
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); loginMutation.mutate(); }} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); loginMutation.mutate(password); }} className="space-y-4">
             <label className="block">
               <span className="text-sm text-neutral-700 mb-2 block">Password</span>
               <input
@@ -171,14 +199,12 @@ export default function App() {
                 <strong className="text-sm tracking-wide text-neutral-800">Worker status</strong>
               </div>
               <button
-                className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+                className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100 disabled:opacity-50"
                 type="button"
-                onClick={() => {
-                  document.cookie = 'auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                  setShowLogin(true);
-                }}
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
               >
-                Logout
+                {logoutMutation.isPending ? 'Signing out...' : 'Logout'}
               </button>
             </div>
             <p className="mt-4 text-sm text-neutral-600">

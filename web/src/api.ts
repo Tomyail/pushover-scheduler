@@ -3,6 +3,7 @@ import type { ScheduleRequest, Task, ExecutionLog } from './types';
 
 export const api = axios.create({
   baseURL: '',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -11,10 +12,22 @@ export const api = axios.create({
 export async function login(password: string): Promise<void> {
   const formData = new FormData();
   formData.append('password', password);
-  await fetch('/login', {
+  const response = await fetch('/login', {
     method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+    },
     body: formData,
+    credentials: 'include',
   });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error((errorData as any).error || 'Login failed');
+  }
+}
+
+export async function logout(): Promise<void> {
+  await api.post('/logout');
 }
 
 export async function listTasks(): Promise<Task[]> {

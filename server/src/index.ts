@@ -3,109 +3,105 @@ import { SchedulerDO } from './scheduler';
 
 export { SchedulerDO };
 
-function isAuthenticated(request: Request, password: string): boolean {
-  const cookie = request.headers.get('Cookie');
-  if (!cookie) return false;
-  const match = cookie.match(/auth=([^;]+)/);
-  return match ? match[1] === password : false;
+/**
+ * Lightweight JWT-like implementation using Web Crypto API (HMAC-SHA256)
+ */
+async function signToken(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const secretKeyData = encoder.encode(password);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    secretKeyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ 
+    authorized: true, 
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (86400 * 30) // 30 days
+  }));
+
+  const partialToken = `${header}.${payload}`;
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(partialToken)
+  );
+
+  const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  return `${partialToken}.${signatureBase64}`;
 }
 
-function getLoginPage(error?: string): Response {
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - Pushover Scheduler</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+async function verifyToken(token: string, password: string): Promise<boolean> {
+  try {
+    const [headerB64, payloadB64, signatureB64] = token.split('.');
+    if (!headerB64 || !payloadB64 || !signatureB64) return false;
+
+    const encoder = new TextEncoder();
+    const secretKeyData = encoder.encode(password);
+    const key = await crypto.subtle.importKey(
+      'raw',
+      secretKeyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    const partialToken = `${headerB64}.${payloadB64}`;
+    
+    // Decode signature from base64url
+    const binarySig = atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/'));
+    const signatureArray = new Uint8Array(binarySig.length);
+    for (let i = 0; i < binarySig.length; i++) {
+      signatureArray[i] = binarySig.charCodeAt(i);
     }
-    .login-card {
-      background: white;
-      border-radius: 20px;
-      padding: 40px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      width: 100%;
-      max-width: 400px;
+
+    const isValid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      signatureArray,
+      encoder.encode(partialToken)
+    );
+
+    if (!isValid) return false;
+
+    // Check expiration
+    const payload = JSON.parse(atob(payloadB64));
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      return false;
     }
-    h1 {
-      font-size: 24px;
-      font-weight: 600;
-      color: #1a1a1a;
-      margin-bottom: 24px;
-      text-align: center;
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function isAuthenticated(request: Request, password: string): Promise<boolean> {
+  // 1. Check Authorization Header (Bearer Token)
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    return await verifyToken(token, password);
+  }
+
+  // 2. Check Cookie
+  const cookie = request.headers.get('Cookie');
+  if (cookie) {
+    const match = cookie.match(/auth=([^;]+)/);
+    if (match) {
+      return await verifyToken(match[1], password);
     }
-    .form-group {
-      margin-bottom: 20px;
-    }
-    label {
-      display: block;
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 8px;
-    }
-    input {
-      width: 100%;
-      padding: 12px 16px;
-      border: 2px solid #e5e7eb;
-      border-radius: 10px;
-      font-size: 16px;
-      transition: border-color 0.2s;
-    }
-    input:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    button:hover {
-      transform: translateY(-2px);
-    }
-    .error {
-      background: #fee;
-      color: #c33;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-  </style>
-</head>
-<body>
-  <div class="login-card">
-    <h1>🔐 Login</h1>
-    ${error ? `<div class="error">${error}</div>` : ''}
-    <form method="POST" action="/login">
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required autofocus>
-      </div>
-      <button type="submit">Sign In</button>
-    </form>
-  </div>
-</body>
-</html>`;
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
+  }
+
+  return false;
 }
 
 export default {
@@ -122,49 +118,81 @@ export default {
       const path = url.pathname;
       const method = request.method;
 
-      // 登录接口
-      if (path === '/login') {
-        if (method === 'POST') {
-          const formData = await request.formData();
-          const password = formData.get('password') as string;
-          
-          if (password === env.AUTH_PASSWORD) {
-            const response = new Response(JSON.stringify({ success: true }), {
-              headers: {
-                'Content-Type': 'application/json',
-                'Set-Cookie': `auth=${password}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`,
-              },
-            });
-            return response;
-          } else {
-            return getLoginPage('Invalid password');
-          }
-        } else if (method === 'GET') {
-          return getLoginPage();
-        }
-      }
+      // Login endpoint
+      if (path === '/login' && method === 'POST') {
+        let password = '';
+        const contentType = request.headers.get('Content-Type') || '';
 
-      // 检查认证（登录页和 health 接口除外）
-      if (!isAuthenticated(request, env.AUTH_PASSWORD) && path !== '/health') {
-        // 如果是 JSON 请求（API），返回 401
-        if (path.startsWith('/api') || 
-            path.startsWith('/schedule') || 
-            path.startsWith('/tasks') ||
-            request.headers.get('Accept')?.includes('application/json')) {
-          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        try {
+          if (contentType.includes('application/json')) {
+            const body = await request.json() as any;
+            password = body.password;
+          } else if (contentType.includes('form')) {
+            const formData = await request.formData();
+            password = formData.get('password') as string;
+          } else {
+            return new Response(JSON.stringify({ error: 'Unsupported content type' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        } catch (e) {
+          return new Response(JSON.stringify({ error: 'Failed to parse request' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (password === env.AUTH_PASSWORD) {
+          const token = await signToken(env.AUTH_PASSWORD);
+          return new Response(JSON.stringify({ success: true, token }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Set-Cookie': `auth=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
+            },
+          });
+        } else {
+          return new Response(JSON.stringify({ error: 'Invalid password' }), {
             status: 401,
             headers: { 'Content-Type': 'application/json' },
           });
         }
-        // 页面请求返回登录页
-        return getLoginPage();
       }
 
-      // 路由到 Scheduler Durable Object
+      // Logout endpoint
+      if (path === '/logout' && method === 'POST') {
+        return new Response(JSON.stringify({ success: true }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Set-Cookie': 'auth=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax',
+          },
+        });
+      }
+
+      // Check authentication
+      if (!(await isAuthenticated(request, env.AUTH_PASSWORD)) && path !== '/health') {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Route to Scheduler Durable Object
       if (path.startsWith('/schedule') || path.startsWith('/tasks')) {
         const id = env.SCHEDULER.idFromName('scheduler');
         const obj = env.SCHEDULER.get(id);
-        return await obj.fetch(request);
+
+        try {
+          return await obj.fetch(request.clone());
+        } catch (doError) {
+          return new Response(JSON.stringify({
+            error: 'Durable Object error',
+            details: doError instanceof Error ? doError.message : String(doError)
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       if (path === '/health') {
@@ -177,8 +205,13 @@ export default {
         });
       }
 
+      // Serve static assets
       if (env.ASSETS) {
-        return await env.ASSETS.fetch(request);
+        try {
+          return await env.ASSETS.fetch(request);
+        } catch (e) {
+          return new Response('Not found', { status: 404 });
+        }
       }
 
       return new Response('Not found', { status: 404 });

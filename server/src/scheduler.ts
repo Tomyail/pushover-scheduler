@@ -33,14 +33,19 @@ export class SchedulerDO implements DurableObject {
   private async listAllTasks(): Promise<Task[]> {
     const tasks: Task[] = [];
 
-    // 从持久化存储读取
     try {
       const result = await this.state.storage.list();
+      
+      if (!result) {
+        console.log('[DEBUG] Storage list returned null/undefined');
+        return [];
+      }
 
-      console.log('[DEBUG] Storage list result type:', typeof result, 'isMap:', result instanceof Map, 'size:', result.size);
+      console.log('[DEBUG] Storage list result type:', typeof result, 'isMap:', result instanceof Map);
 
-      // storage.list() returns a Map, iterate it directly
-      for (const [key, value] of result.entries()) {
+      const entries = result instanceof Map ? result.entries() : Object.entries(result);
+      
+      for (const [key, value] of entries) {
         if (key.startsWith('task:') && typeof value === 'object' && value !== null && 'id' in value) {
           tasks.push(value as Task);
         }
@@ -50,21 +55,15 @@ export class SchedulerDO implements DurableObject {
       return tasks;
     } catch (error) {
       console.error('[ERROR] Error reading from storage:', error);
-
-      // 仅在本地开发环境使用内存存储
-      for (const [key, task] of this.memoryStorage.entries()) {
-        tasks.push(task);
-      }
-      console.log('[INFO] Using in-memory storage fallback, tasks:', tasks.length);
+      return [];
     }
-
-    return tasks;
   }
 
   /**
    * 处理 HTTP 请求
    */
   async fetch(request: Request): Promise<Response> {
+    console.log('[DEBUG] SchedulerDO fetch:', request.method, request.url);
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -164,10 +163,15 @@ export class SchedulerDO implements DurableObject {
    * 列出所有任务
    */
   private async handleListTasks(): Promise<Response> {
-    const tasks = await this.listAllTasks();
-    return new Response(JSON.stringify({ tasks }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    try {
+      const tasks = await this.listAllTasks();
+      return new Response(JSON.stringify({ tasks }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (e) {
+      console.error('handleListTasks error:', e);
+      throw e;
+    }
   }
 
   /**
