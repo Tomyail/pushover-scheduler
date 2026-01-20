@@ -2,7 +2,5 @@
 # 从 https://pushover.net/apps 获取
 PUSHOVER_USER_KEY=your_user_key_here
 PUSHOVER_API_TOKEN=your_api_token_here
-TIMEZONE=Asia/Shanghai
-
 # 管理后台密码 (必填)
 AUTH_PASSWORD=your_password_here
