@@ -24,32 +24,29 @@ export default function App() {
   const [sendingExtras, setSendingExtras] = useState('{"sound":"pushover"}');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
-  const [showLogin, setShowLogin] = useState(true);
+  const [showLogin, setShowLogin] = useState(false); // Default to false to prevent flicker
   const queryClient = useQueryClient();
 
-  // Tasks Query
-  const { data: tasks = [], isLoading, error } = useQuery({
-    queryKey: ['tasks'],
-    queryFn: listTasks,
-    enabled: !showLogin,
-    retry: false,
-  });
-
   // Check Auth Query - runs on mount
-  useQuery({
+  const { isLoading: isAuthChecking, isError: isNotAuthenticated } = useQuery({
     queryKey: ['checkAuth'],
     queryFn: async () => {
-      try {
-        await listTasks();
-        setShowLogin(false);
-        return true;
-      } catch {
-        setShowLogin(true);
-        return false;
-      }
+      await listTasks();
+      return true;
     },
     retry: false,
     staleTime: Infinity,
+  });
+
+  // Decide what to show based on auth check
+  const effectiveShowLogin = showLogin || isNotAuthenticated;
+
+  // Tasks Query - only runs if authenticated
+  const { data: tasks = [], isLoading: isTasksLoading, error: tasksError } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: listTasks,
+    enabled: !effectiveShowLogin && !isAuthChecking,
+    retry: false,
   });
 
   const createMutation = useMutation({
@@ -71,6 +68,7 @@ export default function App() {
     onSuccess: () => {
       setShowLogin(false);
       setPassword('');
+      queryClient.invalidateQueries({ queryKey: ['checkAuth'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
@@ -143,12 +141,21 @@ export default function App() {
   const isFormValid = form.message.trim() &&
     (scheduleType === 'once' ? datetimeValue : cronValue.trim());
 
-  if (showLogin) {
+  // While checking auth, show nothing or a subtle loader to prevent flickering
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="animate-pulse text-sm text-neutral-400 font-medium tracking-widest uppercase">Initializing...</div>
+      </div>
+    );
+  }
+
+  if (effectiveShowLogin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 p-4">
         <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
           <h1 className="text-2xl font-semibold text-neutral-900 text-center mb-6">🔐 Login</h1>
-          {error && (
+          {isNotAuthenticated && !loginMutation.isPending && (
             <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm mb-4">
               Authentication required
             </div>
@@ -330,9 +337,9 @@ export default function App() {
                 </button>
               </div>
               <div className="mt-5">
-                {isLoading ? (
+                {isTasksLoading ? (
                   <p className="text-sm text-neutral-500">Loading tasks...</p>
-                ) : error ? (
+                ) : tasksError ? (
                   <p className="text-sm text-red-600">Unable to load tasks.</p>
                 ) : tasks.length === 0 ? (
                   <p className="text-sm text-neutral-500">No tasks scheduled yet.</p>
