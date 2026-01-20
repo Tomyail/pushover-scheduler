@@ -43,4 +43,16 @@ export class PushoverClient {
       throw error;
     }
   }
+
+  static isPermanentError(error: unknown): boolean {
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      if (errorMessage.includes('token is invalid') || 
+          errorMessage.includes('user key is invalid') ||
+          errorMessage.includes('application token is invalid')) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

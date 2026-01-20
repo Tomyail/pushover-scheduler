@@ -206,6 +206,12 @@ export class SchedulerDO implements DurableObject {
           }
         } catch (error) {
           console.error(`Failed to execute task ${task.id}:`, error);
+          
+          // 如果是永久性错误（如 token 无效），删除任务避免无限重试
+          if (PushoverClient.isPermanentError(error)) {
+            console.error(`Deleting task ${task.id} due to permanent error:`, error);
+            await this.deleteTask(`task:${task.id}`);
+          }
         }
       })
     );
