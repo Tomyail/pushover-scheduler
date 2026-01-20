@@ -8,6 +8,22 @@ export const api = axios.create({
   },
 });
 
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export async function login(password: string): Promise<void> {
+  const formData = new FormData();
+  formData.append('password', password);
+  await api.post('/login', formData);
+}
+
 export async function listTasks(): Promise<Task[]> {
   const response = await api.get<{ tasks: Task[] }>('/tasks');
   return response.data.tasks ?? [];

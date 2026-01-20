@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, deleteTask, listTasks, getTaskLogs } from './api';
+import { createTask, deleteTask, listTasks, getTaskLogs, login } from './api';
 import type { ScheduleRequest, ScheduleType, Task, ExecutionLog } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
@@ -23,11 +23,14 @@ export default function App() {
   const [datetimeValue, setDatetimeValue] = useState('');
   const [sendingExtras, setSendingExtras] = useState('{"sound":"pushover"}');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState('');
   const queryClient = useQueryClient();
 
   const { data: tasks = [], isLoading, error } = useQuery({
     queryKey: ['tasks'],
     queryFn: listTasks,
+    enabled: isLoggedIn,
   });
 
   const createMutation = useMutation({
@@ -42,6 +45,14 @@ export default function App() {
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: () => login(password),
+    onSuccess: () => {
+      setIsLoggedIn(true);
+      setPassword('');
+    },
   });
 
   const { data: logs = [], isLoading: logsLoading } = useQuery({
@@ -104,6 +115,41 @@ export default function App() {
   const isFormValid = form.message.trim() &&
     (scheduleType === 'once' ? datetimeValue : cronValue.trim());
 
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 p-4">
+        <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+          <h1 className="text-2xl font-semibold text-neutral-900 text-center mb-6">🔐 Login</h1>
+          {error && (
+            <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm mb-4">
+              Authentication required
+            </div>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); loginMutation.mutate(); }} className="space-y-4">
+            <label className="block">
+              <span className="text-sm text-neutral-700 mb-2 block">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-2xl border border-black/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+                autoFocus
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white py-3 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={loginMutation.isPending}
+            >
+              {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-6xl px-6 pb-20 pt-10">
@@ -119,9 +165,22 @@ export default function App() {
             </p>
           </div>
           <div className="rounded-3xl border border-black/10 bg-white/90 p-6 shadow-[0_20px_50px_rgba(19,21,26,0.15)]">
-            <div className="flex items-center gap-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.25)]" />
-              <strong className="text-sm tracking-wide text-neutral-800">Worker status</strong>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.25)]" />
+                <strong className="text-sm tracking-wide text-neutral-800">Worker status</strong>
+              </div>
+              <button
+                className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+                type="button"
+                onClick={() => {
+                  document.cookie = 'auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                  setIsLoggedIn(false);
+                  window.location.href = '/';
+                }}
+              >
+                Logout
+              </button>
             </div>
             <p className="mt-4 text-sm text-neutral-600">
               Use <code className="rounded bg-neutral-100 px-2 py-0.5 text-xs">/schedule</code> and{' '}
