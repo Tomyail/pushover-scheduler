@@ -13,10 +13,14 @@ class_name = "SchedulerDO"
 tag = "v1"
 new_sqlite_classes = ["SchedulerDO"]
 
-# Public environment variables
+# Environment Variables
+# The Deploy Button flow will prompt users to fill in these values
 [vars]
 PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
 TIMEZONE = "Asia/Shanghai"
+AUTH_PASSWORD = ""
+PUSHOVER_USER_KEY = ""
+PUSHOVER_API_TOKEN = ""
 
 [observability]
 enabled = true
