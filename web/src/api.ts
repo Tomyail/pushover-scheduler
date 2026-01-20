@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ScheduleRequest, Task } from './types';
+import type { ScheduleRequest, Task, ExecutionLog } from './types';
 
 export const api = axios.create({
   baseURL: '',
@@ -11,6 +11,16 @@ export const api = axios.create({
 export async function listTasks(): Promise<Task[]> {
   const response = await api.get<{ tasks: Task[] }>('/tasks');
   return response.data.tasks ?? [];
+}
+
+export async function getTask(taskId: string): Promise<Task> {
+  const response = await api.get<{ task: Task }>(`/tasks/${taskId}`);
+  return response.data.task;
+}
+
+export async function getTaskLogs(taskId: string): Promise<ExecutionLog[]> {
+  const response = await api.get<{ taskId: string; logs: ExecutionLog[] }>(`/tasks/${taskId}/logs`);
+  return response.data.logs ?? [];
 }
 
 export async function createTask(payload: ScheduleRequest): Promise<{ taskId: string; scheduledTime?: string }> {

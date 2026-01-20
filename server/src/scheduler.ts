@@ -1,4 +1,4 @@
-import type { Task, ScheduleRequest, Env, ScheduleConfig } from './types';
+import type { Task, ScheduleRequest, Env, ScheduleConfig, ExecutionLog } from './types';
 import { PushoverClient } from './pushover';
 
 export class SchedulerDO implements DurableObject {
@@ -73,6 +73,13 @@ export class SchedulerDO implements DurableObject {
         return await this.handleSchedule(request);
       } else if (path === '/tasks' && request.method === 'GET') {
         return await this.handleListTasks();
+      } else if (path.startsWith('/tasks/') && request.method === 'GET') {
+        const taskId = path.split('/')[2];
+        if (path.endsWith('/logs')) {
+          return await this.handleTaskLogs(taskId);
+        } else {
+          return await this.handleGetTask(taskId);
+        }
       } else if (path.startsWith('/tasks/') && request.method === 'DELETE') {
         const taskId = path.split('/')[2];
         return await this.handleDeleteTask(taskId);
@@ -164,6 +171,47 @@ export class SchedulerDO implements DurableObject {
   }
 
   /**
+   * 获取单个任务详情
+   */
+  private async handleGetTask(taskId: string): Promise<Response> {
+    const tasks = await this.listAllTasks();
+    const task = tasks.find(t => t.id === taskId);
+    
+    if (!task) {
+      return new Response(JSON.stringify({ error: 'Task not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ task }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /**
+   * 获取任务执行日志
+   */
+  private async handleTaskLogs(taskId: string): Promise<Response> {
+    const tasks = await this.listAllTasks();
+    const task = tasks.find(t => t.id === taskId);
+    
+    if (!task) {
+      return new Response(JSON.stringify({ error: 'Task not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      taskId: task.id,
+      logs: task.executionHistory || [],
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /**
    * 删除任务
    */
   private async handleDeleteTask(taskId: string): Promise<Response> {
@@ -188,29 +236,47 @@ export class SchedulerDO implements DurableObject {
     await Promise.all(
       tasksToRun.map(async (task) => {
         try {
-          await this.pushover.sendNotification({
+          const response = await this.pushover.sendNotification({
             message: task.message,
             title: task.title,
             ...task.pushover,
           });
 
+          const executionLog: ExecutionLog = {
+            executedAt: new Date().toISOString(),
+            status: 'success',
+            response: `HTTP ${response.status}`,
+          };
+
           if (task.schedule.type === 'once') {
             await this.deleteTask(`task:${task.id}`);
           } else {
-            // 更新重复任务的上次运行时间
             const updatedTask: Task = {
               ...task,
               lastRun: new Date().toISOString(),
+              executionHistory: [...(task.executionHistory || []), executionLog].slice(-100),
             };
             await this.putTask(`task:${task.id}`, updatedTask);
           }
         } catch (error) {
           console.error(`Failed to execute task ${task.id}:`, error);
           
-          // 如果是永久性错误（如 token 无效），删除任务避免无限重试
+          const executionLog: ExecutionLog = {
+            executedAt: new Date().toISOString(),
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+
           if (PushoverClient.isPermanentError(error)) {
             console.error(`Deleting task ${task.id} due to permanent error:`, error);
             await this.deleteTask(`task:${task.id}`);
+          } else {
+            const updatedTask: Task = {
+              ...task,
+              lastRun: new Date().toISOString(),
+              executionHistory: [...(task.executionHistory || []), executionLog].slice(-100),
+            };
+            await this.putTask(`task:${task.id}`, updatedTask);
           }
         }
       })

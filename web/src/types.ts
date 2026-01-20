@@ -6,6 +6,13 @@ export interface ScheduleConfig {
   cron?: string;
 }
 
+export interface ExecutionLog {
+  executedAt: string;
+  status: 'success' | 'failed';
+  response?: string;
+  error?: string;
+}
+
 export interface Task {
   id: string;
   message: string;
@@ -13,6 +20,7 @@ export interface Task {
   schedule: ScheduleConfig;
   createdAt: string;
   lastRun?: string;
+  executionHistory?: ExecutionLog[];
 }
 
 export interface ScheduleRequest {

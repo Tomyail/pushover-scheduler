@@ -22,6 +22,14 @@ export interface ScheduleRequest {
   pushover?: Record<string, string | number | boolean>;
 }
 
+// 执行日志记录
+export interface ExecutionLog {
+  executedAt: string;
+  status: 'success' | 'failed';
+  response?: string;
+  error?: string;
+}
+
 // 任务状态（存储在 Durable Object 中）
 export interface Task {
   id: string;
@@ -30,7 +38,8 @@ export interface Task {
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
   createdAt: string;
-  lastRun?: string; // 上次运行时间（ISO 8601），用于处理延迟触发的 alarm
+  lastRun?: string;
+  executionHistory?: ExecutionLog[];
 }
 
 // Worker 环境变量和绑定

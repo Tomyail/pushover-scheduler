@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, deleteTask, listTasks } from './api';
-import type { ScheduleRequest, ScheduleType, Task } from './types';
+import { createTask, deleteTask, listTasks, getTaskLogs } from './api';
+import type { ScheduleRequest, ScheduleType, Task, ExecutionLog } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
   message: '',
@@ -22,6 +22,7 @@ export default function App() {
   const [cronValue, setCronValue] = useState('0 9 * * *');
   const [datetimeValue, setDatetimeValue] = useState('');
   const [sendingExtras, setSendingExtras] = useState('{"sound":"pushover"}');
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: tasks = [], isLoading, error } = useQuery({
@@ -41,6 +42,13 @@ export default function App() {
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+
+  const { data: logs = [], isLoading: logsLoading } = useQuery({
+    queryKey: ['taskLogs', expandedTaskId],
+    queryFn: () => expandedTaskId ? getTaskLogs(expandedTaskId) : Promise.resolve([]),
+    enabled: !!expandedTaskId,
+    refetchInterval: expandedTaskId ? 5000 : false,
   });
 
   const scheduleType = form.schedule.type;
@@ -252,6 +260,10 @@ export default function App() {
                         task={task}
                         onDelete={deleteMutation.mutate}
                         deleting={deleteMutation.isPending}
+                        isExpanded={expandedTaskId === task.id}
+                        onToggle={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                        logs={task.id === expandedTaskId ? logs : []}
+                        logsLoading={logsLoading}
                       />
                     ))}
                   </div>
@@ -290,24 +302,90 @@ export default function App() {
   );
 }
 
-function TaskRow({ task, onDelete, deleting }: { task: Task; onDelete: (id: string) => void; deleting: boolean }) {
+function TaskRow({ 
+  task, 
+  onDelete, 
+  deleting, 
+  isExpanded, 
+  onToggle,
+  logs,
+  logsLoading 
+}: { 
+  task: Task; 
+  onDelete: (id: string) => void; 
+  deleting: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+  logs: ExecutionLog[];
+  logsLoading: boolean;
+}) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-[#faf9f7] p-4 md:flex-row md:items-center md:justify-between">
-      <div>
-        <p className="text-sm font-semibold text-neutral-900">{task.title || task.message}</p>
-        <p className="text-xs text-neutral-500">{task.schedule.type === 'once' ? 'Once' : 'Repeat'}</p>
+    <div className="rounded-2xl border border-black/10 bg-[#faf9f7]">
+      <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-neutral-900">{task.title || task.message}</p>
+            {task.executionHistory && task.executionHistory.length > 0 && (
+              <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[10px] font-semibold text-neutral-600">
+                {task.executionHistory.length} runs
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-neutral-500">{task.schedule.type === 'once' ? 'Once' : 'Repeat'}</p>
+          {task.lastRun && (
+            <p className="text-xs text-neutral-400 mt-1">Last run: {formatDateTime(task.lastRun)}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-neutral-500 md:items-end">
+          <span>{formatDateTime(task.schedule.datetime || task.schedule.cron)}</span>
+          <button
+            className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+            type="button"
+            onClick={onToggle}
+          >
+            {isExpanded ? 'Hide Logs' : 'View Logs'}
+          </button>
+          <button
+            className="rounded-full bg-neutral-900 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white"
+            type="button"
+            onClick={() => onDelete(task.id)}
+            disabled={deleting}
+          >
+            Delete
+          </button>
+        </div>
       </div>
-      <div className="flex flex-col items-start gap-2 text-xs text-neutral-500 md:items-end">
-        <span>{formatDateTime(task.schedule.datetime || task.schedule.cron)}</span>
-        <button
-          className="rounded-full bg-neutral-900 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white"
-          type="button"
-          onClick={() => onDelete(task.id)}
-          disabled={deleting}
-        >
-          Delete
-        </button>
-      </div>
+      {isExpanded && (
+        <div className="border-t border-black/10 p-4 bg-neutral-50/50">
+          <h4 className="text-xs font-semibold text-neutral-700 mb-3">Execution History</h4>
+          {logsLoading ? (
+            <p className="text-xs text-neutral-500">Loading logs...</p>
+          ) : logs.length === 0 ? (
+            <p className="text-xs text-neutral-500">No execution logs yet.</p>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {logs.slice().reverse().map((log, index) => (
+                <div key={index} className="rounded-lg border border-black/5 bg-white p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-[11px] font-semibold ${
+                      log.status === 'success' ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {log.status === 'success' ? '✓ Success' : '✗ Failed'}
+                    </span>
+                    <span className="text-[10px] text-neutral-400">{formatDateTime(log.executedAt)}</span>
+                  </div>
+                  {log.response && (
+                    <p className="text-[10px] text-neutral-600">{log.response}</p>
+                  )}
+                  {log.error && (
+                    <p className="text-[10px] text-red-600 mt-1">{log.error}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
