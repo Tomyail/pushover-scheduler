@@ -10,11 +10,12 @@ Pushover Scheduler allows you to schedule one-time or recurring notifications vi
 
 ### Architecture
 - **Monorepo Structure**: 
-  - `/server`: Hono-powered API gateway and Durable Object scheduler.
-  - `/web`: React frontend built with Vite and Tailwind CSS.
-- **Durable Objects**: Handles persistent task storage and high-precision alarms for reliable scheduling.
+  - `server/`: Hono-powered API gateway and Durable Object scheduler.
+  - `web/`: React frontend built with Vite and Tailwind CSS.
+  - `wrangler.toml`, `.dev.vars.example`: Configuration files located in the project root.
+- **Durable Objects with SQLite**: Leverages Cloudflare's Durable Objects with built-in SQLite storage for high-precision alarms and persistent task management.
 - **Authentication**: Secure HMAC-SHA256 JWT-based authentication using `AUTH_PASSWORD`.
-- **Routing**: Lightweight and fast routing via Hono.
+- **Routing**: Lightweight and fast routing via Hono framework.
 
 ## 🛠 Setup & Installation
 
@@ -34,14 +35,14 @@ pnpm install
 ```
 
 ### 3. Configure environment variables
-Create a `server/.dev.vars` file for local development:
+Create a `.dev.vars` file in the project root for local development:
 ```env
 AUTH_PASSWORD=your_secure_password
 PUSHOVER_USER_KEY=your_pushover_user_key
 PUSHOVER_API_TOKEN=your_pushover_api_token
 ```
 
-For production, set these secrets via Wrangler:
+For production, you can set these secrets via Wrangler:
 ```bash
 npx wrangler secret put AUTH_PASSWORD
 npx wrangler secret put PUSHOVER_USER_KEY
@@ -57,6 +58,14 @@ npm run dev
 - **API**: [http://localhost:8787](http://localhost:8787)
 
 ### 5. Deployment
+
+#### Deploy via Button
+Click the "Deploy to Workers" button at the top of this README. During the deployment process, you will be prompted to enter the following environment variables directly in the Cloudflare dashboard:
+- `AUTH_PASSWORD`
+- `PUSHOVER_USER_KEY`
+- `PUSHOVER_API_TOKEN`
+
+#### Manual Deployment
 Build the frontend and deploy the worker to Cloudflare:
 ```bash
 npm run deploy
