@@ -224,7 +224,7 @@ export default function App() {
             </label>
             <button
               type="submit"
-              className="w-full bg-gradient-to-br from-[#ff7a59] to-[#ff5530] text-white py-3 rounded-2xl font-semibold shadow-[0_16px_32px_rgba(255,85,48,0.25)] hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full bg-linear-to-br from-[#ff7a59] to-[#ff5530] text-white py-3 rounded-2xl font-semibold shadow-[0_16px_32px_rgba(255,85,48,0.25)] hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
               disabled={loginMutation.isPending}
             >
               {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
@@ -376,7 +376,7 @@ export default function App() {
               </label>
               <button
                 type="submit"
-                className="rounded-2xl bg-gradient-to-br from-[#ff7a59] to-[#ff5530] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(255,85,48,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-linear-to-br from-[#ff7a59] to-[#ff5530] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(255,85,48,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={!isFormValid || createMutation.isPending || updateMutation.isPending}
               >
                 {createMutation.isPending || updateMutation.isPending ? 'Saving...' : editingTaskId ? 'Update task' : 'Schedule notification'}

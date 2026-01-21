@@ -20,6 +20,7 @@ export interface Task {
   title?: string;
   aiPrompt?: string;
   schedule: ScheduleConfig;
+  pushover?: Record<string, string | number | boolean>;
   createdAt: string;
   lastRun?: string;
   executionHistory?: ExecutionLog[];
