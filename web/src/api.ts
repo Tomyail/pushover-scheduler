@@ -55,6 +55,11 @@ export async function updateTask(taskId: string, payload: ScheduleRequest): Prom
   return response.data;
 }
 
+
 export async function deleteTask(taskId: string): Promise<void> {
   await api.delete(`/tasks/${taskId}`);
+}
+
+export async function triggerTask(taskId: string): Promise<void> {
+  await api.post(`/tasks/${taskId}/trigger`);
 }

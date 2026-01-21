@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout } from './api';
+import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout, triggerTask } from './api';
 import type { ScheduleRequest, ScheduleType, Task, ExecutionLog } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
@@ -106,6 +106,14 @@ export default function App() {
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+  
+  const triggerMutation = useMutation({
+    mutationFn: triggerTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['taskLogs'] });
+    },
   });
 
   const loginMutation = useMutation({
@@ -453,6 +461,8 @@ export default function App() {
                         task={task}
                         onDelete={deleteMutation.mutate}
                         deleting={deleteMutation.isPending}
+                        onTrigger={triggerMutation.mutate}
+                        triggering={triggerMutation.isPending && triggerMutation.variables === task.id}
                         isExpanded={expandedTaskId === task.id}
                         onToggle={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                         logs={task.id === expandedTaskId ? logs : []}
@@ -500,6 +510,8 @@ function TaskRow({
   task,
   onDelete,
   deleting,
+  onTrigger,
+  triggering,
   isExpanded,
   onToggle,
   logs,
@@ -509,6 +521,8 @@ function TaskRow({
   task: Task;
   onDelete: (id: string) => void;
   deleting: boolean;
+  onTrigger: (id: string) => void;
+  triggering: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   logs: ExecutionLog[];
@@ -558,6 +572,14 @@ function TaskRow({
 
           {/* Actions */}
           <div className="flex flex-col gap-2 shrink-0 md:flex-row md:items-center">
+             <button
+              className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700 disabled:opacity-50"
+              type="button"
+              onClick={() => onTrigger(task.id)}
+              disabled={triggering}
+            >
+              {triggering ? 'Running...' : 'Run Now'}
+            </button>
              <button
               className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
               type="button"

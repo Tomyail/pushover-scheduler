@@ -130,6 +130,24 @@ export class SchedulerDO implements DurableObject {
       await this.state.storage.delete(`task:${id}`);
       return c.json({ success: true });
     });
+
+    // Trigger a task immediately
+    this.app.post('/tasks/:id/trigger', async (c) => {
+      const id = c.req.param('id');
+      const task = await this.state.storage.get<Task>(`task:${id}`);
+      if (!task) return c.json({ error: 'Task not found' }, 404);
+
+      try {
+        const result = await this.executeTask(task, true);
+        return c.json({ 
+          success: true, 
+          message: 'Task triggered successfully', 
+          aiGeneratedMessage: result.aiGeneratedMessage 
+        });
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
+      }
+    });
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -168,77 +186,86 @@ export class SchedulerDO implements DurableObject {
     const tasksToRun = tasks.filter(task => this.shouldRunTask(task, now, timeZone));
 
     await Promise.all(
-      tasksToRun.map(async (task) => {
-        try {
-          let finalMessage = task.message;
-          let aiGeneratedMessage: string | undefined;
-
-          if (task.aiPrompt && this.env.AI) {
-            try {
-              const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', {
-                messages: [
-                  { role: 'system', content: 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.' },
-                  { role: 'user', content: task.aiPrompt }
-                ],
-                max_tokens: 100
-              });
-              
-              if (response && response.response) {
-                aiGeneratedMessage = response.response;
-                finalMessage = aiGeneratedMessage!;
-              }
-            } catch (aiError) {
-              console.error('[AI ERROR]', aiError);
-            }
-          }
-
-          const response = await this.pushover.sendNotification({
-            message: finalMessage,
-            title: task.title,
-            ...task.pushover,
-          });
-
-          const executionLog: ExecutionLog = {
-            executedAt: new Date().toISOString(),
-            status: 'success',
-            response: `HTTP ${response.status}`,
-            aiGeneratedMessage,
-          };
-
-          if (task.schedule.type === 'once') {
-            await this.state.storage.delete(`task:${task.id}`);
-          } else {
-            const updatedTask: Task = {
-              ...task,
-              lastRun: new Date().toISOString(),
-              executionHistory: [...(task.executionHistory || []), executionLog].slice(-100),
-            };
-            await this.state.storage.put(`task:${task.id}`, updatedTask);
-          }
-        } catch (error) {
-          const executionLog: ExecutionLog = {
-            executedAt: new Date().toISOString(),
-            status: 'failed',
-            error: error instanceof Error ? error.message : 'Unknown error',
-          };
-
-          if (PushoverClient.isPermanentError(error)) {
-            await this.state.storage.delete(`task:${task.id}`);
-          } else {
-            const updatedTask: Task = {
-              ...task,
-              lastRun: new Date().toISOString(),
-              executionHistory: [...(task.executionHistory || []), executionLog].slice(-100),
-            };
-            await this.state.storage.put(`task:${task.id}`, updatedTask);
-          }
-        }
-      })
+      tasksToRun.map(task => this.executeTask(task, false).catch(err => console.error(`[ALARM ERROR] Task ${task.id}:`, err)))
     );
 
     const updatedTasks = await this.listAllTasks();
     const nextRun = this.findEarliestRunTime(updatedTasks, timeZone);
     if (nextRun) await this.state.storage.setAlarm(nextRun);
+  }
+
+  /**
+   * Core Task Execution Logic
+   */
+  private async executeTask(task: Task, isManual: boolean): Promise<{ aiGeneratedMessage?: string }> {
+    try {
+      let finalMessage = task.message;
+      let aiGeneratedMessage: string | undefined;
+
+      if (task.aiPrompt && this.env.AI) {
+        try {
+          const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', {
+            messages: [
+              { role: 'system', content: 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.' },
+              { role: 'user', content: task.aiPrompt }
+            ],
+            max_tokens: 100
+          });
+          
+          if (response && response.response) {
+            aiGeneratedMessage = response.response;
+            finalMessage = aiGeneratedMessage!;
+          }
+        } catch (aiError) {
+          console.error('[AI ERROR]', aiError);
+          // Fallback to original message if AI fails
+        }
+      }
+
+      const response = await this.pushover.sendNotification({
+        message: finalMessage,
+        title: task.title,
+        ...task.pushover,
+      });
+
+      const executionLog: ExecutionLog = {
+        executedAt: new Date().toISOString(),
+        status: 'success',
+        response: `HTTP ${response.status}${isManual ? ' (Manual Trigger)' : ''}`,
+        aiGeneratedMessage,
+      };
+
+      if (task.schedule.type === 'once' && !isManual) {
+        await this.state.storage.delete(`task:${task.id}`);
+      } else {
+        const updatedTask: Task = {
+          ...task,
+          lastRun: executionLog.executedAt,
+          executionHistory: [...(task.executionHistory || []), executionLog].slice(-100),
+        };
+        await this.state.storage.put(`task:${task.id}`, updatedTask);
+      }
+
+      return { aiGeneratedMessage };
+    } catch (error) {
+      const executionLog: ExecutionLog = {
+        executedAt: new Date().toISOString(),
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      if (PushoverClient.isPermanentError(error) && !isManual) {
+        await this.state.storage.delete(`task:${task.id}`);
+      } else {
+        const updatedTask: Task = {
+          ...task,
+          lastRun: executionLog.executedAt,
+          executionHistory: [...(task.executionHistory || []), executionLog].slice(-100),
+        };
+        await this.state.storage.put(`task:${task.id}`, updatedTask);
+      }
+      throw error;
+    }
   }
 
   // --- Logic Helpers (unchanged, just moved) ---
