@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, deleteTask, listTasks, getTaskLogs, login, logout } from './api';
+import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout } from './api';
 import type { ScheduleRequest, ScheduleType, Task, ExecutionLog } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
@@ -23,6 +23,7 @@ export default function App() {
   const [datetimeValue, setDatetimeValue] = useState('');
   const [sendingExtras, setSendingExtras] = useState('{"sound":"pushover"}');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [showLogin, setShowLogin] = useState(false); // Default to false to prevent flicker
   const queryClient = useQueryClient();
@@ -55,6 +56,20 @@ export default function App() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setForm(defaultSchedule());
       setDatetimeValue('');
+      setCronValue('0 9 * * *');
+      setSendingExtras('{"sound":"pushover"}');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ taskId, payload }: { taskId: string; payload: ScheduleRequest }) => updateTask(taskId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setEditingTaskId(null);
+      setForm(defaultSchedule());
+      setDatetimeValue('');
+      setCronValue('0 9 * * *');
+      setSendingExtras('{"sound":"pushover"}');
     },
   });
 
@@ -80,6 +95,34 @@ export default function App() {
       queryClient.clear();
     },
   });
+
+  const handleEditTask = (task: Task) => {
+    setEditingTaskId(task.id);
+    setForm({
+      message: task.message,
+      title: task.title,
+      aiPrompt: task.aiPrompt,
+      schedule: task.schedule,
+      pushover: task.pushover,
+    });
+    if (task.schedule.type === 'repeat' && task.schedule.cron) {
+      setCronValue(task.schedule.cron);
+    } else if (task.schedule.type === 'once' && task.schedule.datetime) {
+      setDatetimeValue(task.schedule.datetime);
+    }
+    if (task.pushover) {
+      setSendingExtras(JSON.stringify(task.pushover, null, 2));
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTaskId(null);
+    setForm(defaultSchedule());
+    setDatetimeValue('');
+    setCronValue('0 9 * * *');
+    setSendingExtras('{"sound":"pushover"}');
+  };
 
   const { data: logs = [], isLoading: logsLoading } = useQuery({
     queryKey: ['taskLogs', expandedTaskId],
@@ -130,13 +173,19 @@ export default function App() {
       }
     }
 
-    createMutation.mutate({
+    const payload = {
       message: form.message.trim() || (form.aiPrompt ? 'AI Generated' : ''),
       title: form.title?.trim() || undefined,
       aiPrompt: form.aiPrompt?.trim() || undefined,
       schedule,
       pushover,
-    });
+    };
+
+    if (editingTaskId) {
+      updateMutation.mutate({ taskId: editingTaskId, payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
 
   const isFormValid = (form.message.trim() || form.aiPrompt?.trim()) &&
@@ -226,7 +275,16 @@ export default function App() {
         <main className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-neutral-900">Create a task</h2>
+              <h2 className="text-xl font-semibold text-neutral-900">{editingTaskId ? 'Edit task' : 'Create a task'}</h2>
+              {editingTaskId && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+                >
+                  Cancel Edit
+                </button>
+              )}
               <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold tracking-wide">
                 {scheduleType === 'repeat' ? 'Repeat' : 'Once'}
               </span>
@@ -319,12 +377,15 @@ export default function App() {
               <button
                 type="submit"
                 className="rounded-2xl bg-gradient-to-br from-[#ff7a59] to-[#ff5530] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(255,85,48,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!isFormValid || createMutation.isPending}
+                disabled={!isFormValid || createMutation.isPending || updateMutation.isPending}
               >
-                {createMutation.isPending ? 'Scheduling...' : 'Schedule notification'}
+                {createMutation.isPending || updateMutation.isPending ? 'Saving...' : editingTaskId ? 'Update task' : 'Schedule notification'}
               </button>
-              {createMutation.isError && (
+              {createMutation.isError && !editingTaskId && (
                 <p className="text-sm text-red-600">Failed to create task. Check worker logs.</p>
+              )}
+              {updateMutation.isError && editingTaskId && (
+                <p className="text-sm text-red-600">Failed to update task. Check worker logs.</p>
               )}
             </form>
             <div className="mt-6 rounded-2xl border border-black/10 bg-[#f5f2ee] p-4">
@@ -366,6 +427,7 @@ export default function App() {
                         onToggle={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                         logs={task.id === expandedTaskId ? logs : []}
                         logsLoading={logsLoading}
+                        onEdit={handleEditTask}
                       />
                     ))}
                   </div>
@@ -404,22 +466,24 @@ export default function App() {
   );
 }
 
-function TaskRow({ 
-  task, 
-  onDelete, 
-  deleting, 
-  isExpanded, 
+function TaskRow({
+  task,
+  onDelete,
+  deleting,
+  isExpanded,
   onToggle,
   logs,
-  logsLoading 
-}: { 
-  task: Task; 
-  onDelete: (id: string) => void; 
+  logsLoading,
+  onEdit
+}: {
+  task: Task;
+  onDelete: (id: string) => void;
   deleting: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   logs: ExecutionLog[];
   logsLoading: boolean;
+  onEdit: (task: Task) => void;
 }) {
   return (
     <div className="rounded-2xl border border-black/10 bg-[#faf9f7]">
@@ -446,6 +510,13 @@ function TaskRow({
             onClick={onToggle}
           >
             {isExpanded ? 'Hide Logs' : 'View Logs'}
+          </button>
+          <button
+            className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+            type="button"
+            onClick={() => onEdit(task)}
+          >
+            Edit
           </button>
           <button
             className="rounded-full bg-neutral-900 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white"

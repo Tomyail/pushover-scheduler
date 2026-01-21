@@ -78,6 +78,50 @@ export class SchedulerDO implements DurableObject {
       return c.json({ taskId: task.id, logs: task.executionHistory || [] });
     });
 
+    // Update a task
+    this.app.put('/tasks/:id', async (c) => {
+      const id = c.req.param('id');
+      const body = (await c.req.json()) as ScheduleRequest;
+
+      if ((!body.message && !body.aiPrompt) || !body.schedule) {
+        return c.json({ error: 'message or aiPrompt and schedule are required' }, 400);
+      }
+
+      if (body.schedule.type === 'once' && !body.schedule.datetime) {
+        return c.json({ error: 'datetime is required for once type' }, 400);
+      }
+
+      if (body.schedule.type === 'repeat' && !body.schedule.cron) {
+        return c.json({ error: 'cron is required for repeat type' }, 400);
+      }
+
+      const existingTask = await this.state.storage.get<Task>(`task:${id}`);
+      if (!existingTask) {
+        return c.json({ error: 'Task not found' }, 404);
+      }
+
+      const updatedTask: Task = {
+        ...existingTask,
+        message: body.message,
+        title: body.title,
+        aiPrompt: body.aiPrompt,
+        schedule: body.schedule,
+        pushover: body.pushover,
+      };
+
+      await this.state.storage.put(`task:${id}`, updatedTask);
+      const timeZone = this.env.TIMEZONE || 'UTC';
+
+      // Update Alarm
+      const tasks = await this.listAllTasks();
+      const nextAlarmTime = this.findEarliestRunTime(tasks, timeZone);
+      if (nextAlarmTime) {
+        await this.state.storage.setAlarm(nextAlarmTime);
+      }
+
+      return c.json({ taskId: id, scheduledTime: this.calculateNextRunTime(updatedTask.schedule, timeZone) });
+    });
+
     // Delete a task
     this.app.delete('/tasks/:id', async (c) => {
       const id = c.req.param('id');

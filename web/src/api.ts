@@ -50,6 +50,11 @@ export async function createTask(payload: ScheduleRequest): Promise<{ taskId: st
   return response.data;
 }
 
+export async function updateTask(taskId: string, payload: ScheduleRequest): Promise<{ taskId: string; scheduledTime?: string }> {
+  const response = await api.put(`/tasks/${taskId}`, payload);
+  return response.data;
+}
+
 export async function deleteTask(taskId: string): Promise<void> {
   await api.delete(`/tasks/${taskId}`);
 }
