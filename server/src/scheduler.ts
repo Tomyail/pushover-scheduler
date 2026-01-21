@@ -129,9 +129,9 @@ export class SchedulerDO implements DurableObject {
 
           if (task.aiPrompt && this.env.AI) {
             try {
-              const response = await this.env.AI.run('@cf/meta/llama-3-8b-instruct', {
+              const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', {
                 messages: [
-                  { role: 'system', content: 'You are a helpful assistant generating short notification messages.' },
+                  { role: 'system', content: 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.' },
                   { role: 'user', content: task.aiPrompt }
                 ],
                 max_tokens: 100
