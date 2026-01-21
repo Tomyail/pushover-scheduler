@@ -508,78 +508,123 @@ function TaskRow({
   onEdit: (task: Task) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-black/10 bg-[#faf9f7]">
-      <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-neutral-900">{task.title || task.message}</p>
-            {task.executionHistory && task.executionHistory.length > 0 && (
-              <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[10px] font-semibold text-neutral-600">
-                {task.executionHistory.length} runs
+    <div className="group relative overflow-hidden rounded-[24px] border border-black/10 bg-white transition-all hover:border-black/20 hover:shadow-sm">
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {/* Header: Title/Message */}
+            <h3 className="text-base font-semibold text-neutral-900 leading-tight line-clamp-2" title={task.title || task.message}>
+              {task.title || task.message}
+            </h3>
+            
+            {/* Meta tags */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                task.schedule.type === 'repeat' 
+                  ? 'bg-blue-50 text-blue-600' 
+                  : 'bg-orange-50 text-orange-600'
+              }`}>
+                {task.schedule.type}
               </span>
+              
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-medium text-neutral-600">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {formatDateTime(task.schedule.datetime || task.schedule.cron)}
+              </span>
+
+              {task.executionHistory && task.executionHistory.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                  {task.executionHistory.length} runs
+                </span>
+              )}
+            </div>
+
+            {task.lastRun && (
+              <p className="mt-2 text-[11px] text-neutral-400">
+                Last run: <span className="text-neutral-600">{formatDateTime(task.lastRun)}</span>
+              </p>
             )}
           </div>
-          <p className="text-xs text-neutral-500">{task.schedule.type === 'once' ? 'Once' : 'Repeat'}</p>
-          {task.lastRun && (
-            <p className="text-xs text-neutral-400 mt-1">Last run: {formatDateTime(task.lastRun)}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-neutral-500 md:items-end">
-          <span>{formatDateTime(task.schedule.datetime || task.schedule.cron)}</span>
-          <button
-            className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
-            type="button"
-            onClick={onToggle}
-          >
-            {isExpanded ? 'Hide Logs' : 'View Logs'}
-          </button>
-          <button
-            className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
-            type="button"
-            onClick={() => onEdit(task)}
-          >
-            Edit
-          </button>
-          <button
-            className="rounded-full bg-neutral-900 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white"
-            type="button"
-            onClick={() => onDelete(task.id)}
-            disabled={deleting}
-          >
-            Delete
-          </button>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2 shrink-0 md:flex-row md:items-center">
+             <button
+              className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
+              type="button"
+              onClick={onToggle}
+            >
+              {isExpanded ? 'Hide Logs' : 'Logs'}
+            </button>
+            <button
+              className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
+              type="button"
+              onClick={() => onEdit(task)}
+            >
+              Edit
+            </button>
+            <button
+              className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-neutral-800"
+              type="button"
+              onClick={() => onDelete(task.id)}
+              disabled={deleting}
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </div>
+
       {isExpanded && (
-        <div className="border-t border-black/10 p-4 bg-neutral-50/50">
-          <h4 className="text-xs font-semibold text-neutral-700 mb-3">Execution History</h4>
+        <div className="border-t border-black/5 bg-neutral-50/50 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-500">Execution History</h4>
+            {logs.length > 0 && <span className="text-[10px] text-neutral-400">Showing last {logs.length} runs</span>}
+          </div>
+          
           {logsLoading ? (
-            <p className="text-xs text-neutral-500">Loading logs...</p>
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-pulse text-xs text-neutral-400">Loading logs...</div>
+            </div>
           ) : logs.length === 0 ? (
-            <p className="text-xs text-neutral-500">No execution logs yet.</p>
+            <div className="rounded-2xl border border-dashed border-black/10 p-8 text-center">
+              <p className="text-xs text-neutral-400">No logs recorded yet.</p>
+            </div>
           ) : (
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
               {logs.slice().reverse().map((log, index) => (
-                <div key={index} className="rounded-lg border border-black/5 bg-white p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`text-[11px] font-semibold ${
-                      log.status === 'success' ? 'text-emerald-600' : 'text-red-600'
-                    }`}>
-                      {log.status === 'success' ? '✓ Success' : '✗ Failed'}
-                    </span>
-                    <span className="text-[10px] text-neutral-400">{formatDateTime(log.executedAt)}</span>
+                <div key={index} className="group/log rounded-xl border border-black/5 bg-white p-3 transition-colors hover:border-black/10">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-1.5 w-1.5 rounded-full ${
+                          log.status === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+                        }`} />
+                        <span className={`text-[11px] font-bold uppercase tracking-tight ${
+                          log.status === 'success' ? 'text-emerald-600' : 'text-red-600'
+                        }`}>
+                          {log.status === 'success' ? 'Delivered' : 'Failed'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400">{formatDateTime(log.executedAt)}</p>
+                    </div>
+                    {log.response && (
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-mono text-neutral-500">{log.response}</span>
+                    )}
                   </div>
-                  {log.response && (
-                    <p className="text-[10px] text-neutral-600">{log.response}</p>
-                  )}
+                  
                   {log.aiGeneratedMessage && (
-                    <div className="mt-2 rounded bg-neutral-100 p-2">
-                      <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1">AI Generated Content</p>
-                      <p className="text-[11px] text-neutral-800 leading-relaxed italic">"{log.aiGeneratedMessage}"</p>
+                    <div className="mt-3 relative rounded-lg bg-neutral-50 p-2.5 border border-black/5">
+                      <div className="absolute -top-2 left-3 bg-neutral-50 px-1 text-[8px] font-bold uppercase tracking-tighter text-neutral-400">AI Preview</div>
+                      <p className="text-[11px] text-neutral-700 leading-relaxed italic">“{log.aiGeneratedMessage}”</p>
                     </div>
                   )}
+                  
                   {log.error && (
-                    <p className="text-[10px] text-red-600 mt-1">{log.error}</p>
+                    <div className="mt-2 rounded-lg bg-red-50 p-2 border border-red-100">
+                      <p className="text-[10px] text-red-600 font-medium">{log.error}</p>
+                    </div>
                   )}
                 </div>
               ))}
