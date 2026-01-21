@@ -349,7 +349,7 @@ export default function App() {
                     className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
                       typeof form.aiPrompt === 'string' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
                     }`}
-                    onClick={() => setForm((prev) => ({ ...prev, aiPrompt: '', title: undefined }))}
+                    onClick={() => setForm((prev) => ({ ...prev, aiPrompt: '' }))}
                   >
                     AI Generation
                   </button>
@@ -385,9 +385,18 @@ export default function App() {
                     <textarea
                       value={form.aiPrompt ?? ''}
                       onChange={(event) => setForm((prev) => ({ ...prev, aiPrompt: event.target.value }))}
-                      placeholder="Ask AI to generate message content (e.g. 'Write a funny morning greeting')"
+                      placeholder="Ask AI to generate message content"
                       rows={2}
                       required
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm text-neutral-700">
+                    <span>Title (optional)</span>
+                    <input
+                      value={form.title ?? ''}
+                      onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                      placeholder="Static notification title"
                       className="rounded-2xl border border-black/10 bg-white px-4 py-2"
                     />
                   </label>

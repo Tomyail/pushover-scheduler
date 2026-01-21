@@ -5,6 +5,7 @@
 A professional, scheduled notification service built on **Cloudflare Workers**, **Durable Objects**, and **Hono**, featuring a modern **React** frontend.
 
 ## 🚀 Overview
+![Pushover Scheduler Overview](./image.png)
 
 Pushover Scheduler allows you to schedule one-time or recurring notifications via Pushover with precision. Leveraging Cloudflare's edge infrastructure, it ensures high availability and low-latency task execution.
 
