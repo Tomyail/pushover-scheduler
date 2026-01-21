@@ -202,8 +202,8 @@ export default function App() {
 
   if (effectiveShowLogin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 p-4">
-        <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
+        <div className="bg-white rounded-[28px] border border-black/10 p-8 w-full max-w-md shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
           <h1 className="text-2xl font-semibold text-neutral-900 text-center mb-6">🔐 Login</h1>
           {isNotAuthenticated && !loginMutation.isPending && (
             <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm mb-4">
@@ -217,14 +217,14 @@ export default function App() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl border border-black/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-3 rounded-2xl border border-black/10 focus:outline-none focus:ring-2 focus:ring-neutral-900"
                 required
                 autoFocus
               />
             </label>
             <button
               type="submit"
-              className="w-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white py-3 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full bg-gradient-to-br from-[#ff7a59] to-[#ff5530] text-white py-3 rounded-2xl font-semibold shadow-[0_16px_32px_rgba(255,85,48,0.25)] hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
               disabled={loginMutation.isPending}
             >
               {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
