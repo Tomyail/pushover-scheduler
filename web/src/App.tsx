@@ -12,9 +12,31 @@ const defaultSchedule = (): ScheduleRequest => ({
   pushover: {},
 });
 
+const SERVER_TIMEZONE = 'Asia/Shanghai'; // This should ideally come from an API, but for now we match wrangler.toml
+
 function formatDateTime(value?: string) {
   if (!value) return '-';
-  return value.replace('T', ' ').replace('Z', ' UTC');
+  
+  // If it looks like a cron expression (contains spaces and doesn't look like an ISO date)
+  if (value.includes(' ') && !value.includes('T') && !value.includes('-')) {
+    return value;
+  }
+
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return value;
+
+  // For ISO strings that end with Z or have an offset, they are absolute times.
+  // We want to show them in the user's local browser time.
+  // For datetime-local inputs (which might not have Z), we should be careful.
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
 export default function App() {
@@ -268,7 +290,7 @@ export default function App() {
               Use <code className="rounded bg-neutral-100 px-2 py-0.5 text-xs">/schedule</code> and{' '}
               <code className="rounded bg-neutral-100 px-2 py-0.5 text-xs">/tasks</code> for API access.
             </p>
-            <p className="mt-2 text-xs text-neutral-500">Timezone is configured on the server.</p>
+                        <p className="mt-2 text-xs text-neutral-500">Scheduled times are based on server timezone: <span className="font-semibold text-neutral-700">{SERVER_TIMEZONE}</span></p>
           </div>
         </header>
 
@@ -344,7 +366,7 @@ export default function App() {
               </div>
               {scheduleType === 'once' ? (
                 <label className="grid gap-2 text-sm text-neutral-700">
-                  <span>Run at (server timezone)</span>
+                                    <span>Run at ({SERVER_TIMEZONE})</span>
                   <input
                     type="datetime-local"
                     value={datetimeValue}
@@ -355,7 +377,7 @@ export default function App() {
                 </label>
               ) : (
                 <label className="grid gap-2 text-sm text-neutral-700">
-                  <span>Cron (server timezone)</span>
+                                    <span>Cron ({SERVER_TIMEZONE})</span>
                   <input
                     value={cronValue}
                     onChange={(event) => setCronValue(event.target.value)}
