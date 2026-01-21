@@ -245,8 +245,10 @@ export class SchedulerDO implements DurableObject {
     if (task.schedule.type === 'once') {
       return now >= this.parseDateTimeInTimeZone(task.schedule.datetime!, timeZone);
     } else if (task.schedule.type === 'repeat') {
-      const lastRun = task.lastRun ? new Date(task.lastRun) : new Date(0);
-      return now >= this.getNextCronTimeAfter(task.schedule.cron!, lastRun, timeZone);
+      if (!task.lastRun) {
+        return now >= this.getNextCronTime(task.schedule.cron!, timeZone);
+      }
+      return now >= this.getNextCronTimeAfter(task.schedule.cron!, new Date(task.lastRun), timeZone);
     }
     return false;
   }
@@ -306,7 +308,8 @@ export class SchedulerDO implements DurableObject {
   }
 
   private getNextCronTimeAfter(cron: string, after: Date, timeZone: string): Date {
-    const next = new Date(after.getTime() + 60_000);
+    let next = new Date(after);
+    next.setMinutes(next.getMinutes() + 1, 0, 0);
     for (let i = 0; i < 525600; i++) {
       if (this.matchesCron(cron, next, timeZone)) return next;
       next.setMinutes(next.getMinutes() + 1);
