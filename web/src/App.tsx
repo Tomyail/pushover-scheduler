@@ -67,7 +67,15 @@ export default function App() {
   // Tasks Query - only runs if authenticated
   const { data: tasks = [], isLoading: isTasksLoading, error: tasksError } = useQuery({
     queryKey: ['tasks'],
-    queryFn: listTasks,
+    queryFn: async () => {
+      const data = await listTasks();
+      // Sort tasks by createdAt descending (newest first)
+      return [...data].sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+    },
     enabled: !effectiveShowLogin && !isAuthChecking,
     retry: false,
   });
@@ -259,14 +267,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-6xl px-6 pb-20 pt-10">
+      <div className="mx-auto max-w-7xl px-6 pb-20 pt-10">
         <header className="grid gap-8 md:grid-cols-[1.2fr_0.8fr] md:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Pushover Scheduler</p>
             <h1 className="mt-3 text-3xl font-semibold leading-tight text-neutral-900 md:text-5xl">
               Ship precise notifications with a calmer dashboard.
             </h1>
-            <p className="mt-4 max-w-lg text-base text-neutral-600">
+            <p className="mt-4 max-w-xl text-base text-neutral-600">
               Manage one-off reminders and repeating alerts on the same endpoint,
               now with a lightweight control surface.
             </p>
@@ -290,11 +298,11 @@ export default function App() {
               Use <code className="rounded bg-neutral-100 px-2 py-0.5 text-xs">/schedule</code> and{' '}
               <code className="rounded bg-neutral-100 px-2 py-0.5 text-xs">/tasks</code> for API access.
             </p>
-                        <p className="mt-2 text-xs text-neutral-500">Scheduled times are based on server timezone: <span className="font-semibold text-neutral-700">{SERVER_TIMEZONE}</span></p>
+            <p className="mt-2 text-xs text-neutral-500">Scheduled times are based on server timezone: <span className="font-semibold text-neutral-700">{SERVER_TIMEZONE}</span></p>
           </div>
         </header>
 
-        <main className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <main className="mt-10 grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
           <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-neutral-900">{editingTaskId ? 'Edit task' : 'Create a task'}</h2>
