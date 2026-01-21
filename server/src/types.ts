@@ -19,6 +19,8 @@ export interface ScheduleRequest {
   message: string;
   title?: string;
   aiPrompt?: string;
+  aiModel?: string;
+  aiSystemPrompt?: string;
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
 }
@@ -38,6 +40,8 @@ export interface Task {
   message: string;
   title?: string;
   aiPrompt?: string;
+  aiModel?: string;
+  aiSystemPrompt?: string;
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
   createdAt: string;

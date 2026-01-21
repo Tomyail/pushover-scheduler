@@ -140,6 +140,8 @@ export default function App() {
       message: task.message,
       title: task.title,
       aiPrompt: task.aiPrompt,
+      aiModel: task.aiModel,
+      aiSystemPrompt: task.aiSystemPrompt,
       schedule: task.schedule,
       pushover: task.pushover,
     });
@@ -215,6 +217,8 @@ export default function App() {
       message: form.message.trim() || (form.aiPrompt ? 'AI Generated' : ''),
       title: form.title?.trim() || undefined,
       aiPrompt: form.aiPrompt?.trim() || undefined,
+      aiModel: form.aiModel?.trim() || undefined,
+      aiSystemPrompt: form.aiSystemPrompt?.trim() || undefined,
       schedule,
       pushover,
     };
@@ -328,36 +332,100 @@ export default function App() {
               </span>
             </div>
             <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
-              <label className="grid gap-2 text-sm text-neutral-700">
-                <span>Message</span>
-                <input
-                  value={form.message}
-                  onChange={(event) => setForm((prev) => ({ ...prev, message: event.target.value }))}
-                  placeholder="Your notification message"
-                  required
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-2"
-                />
-              </label>
-              <label className="grid gap-2 text-sm text-neutral-700">
-                <span>Title (optional)</span>
-                <input
-                  value={form.title ?? ''}
-                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                  placeholder="Short title"
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-2"
-                />
-              </label>
-              <label className="grid gap-2 text-sm text-neutral-700">
-                <span>AI Prompt (optional)</span>
-                <textarea
-                  value={form.aiPrompt ?? ''}
-                  onChange={(event) => setForm((prev) => ({ ...prev, aiPrompt: event.target.value }))}
-                  placeholder="Ask AI to generate message content (e.g. 'Write a funny morning greeting')"
-                  rows={2}
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-2"
-                />
-              </label>
               <div className="grid gap-2 text-sm text-neutral-700">
+                <span>Content type</span>
+                <div className="inline-flex gap-2 rounded-full bg-neutral-100 p-1 w-fit">
+                  <button
+                    type="button"
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                      !form.aiPrompt && form.aiPrompt !== '' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
+                    }`}
+                    onClick={() => setForm((prev) => ({ ...prev, aiPrompt: undefined, aiModel: undefined, aiSystemPrompt: undefined }))}
+                  >
+                    Simple Text
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                      typeof form.aiPrompt === 'string' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
+                    }`}
+                    onClick={() => setForm((prev) => ({ ...prev, aiPrompt: '', title: undefined }))}
+                  >
+                    AI Generation
+                  </button>
+                </div>
+              </div>
+
+              {typeof form.aiPrompt !== 'string' ? (
+                <div className="grid gap-4">
+                  <label className="grid gap-2 text-sm text-neutral-700">
+                    <span>Message</span>
+                    <input
+                      value={form.message}
+                      onChange={(event) => setForm((prev) => ({ ...prev, message: event.target.value }))}
+                      placeholder="Your notification message"
+                      required
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm text-neutral-700">
+                    <span>Title (optional)</span>
+                    <input
+                      value={form.title ?? ''}
+                      onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                      placeholder="Short title"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  <label className="grid gap-2 text-sm text-neutral-700">
+                    <span>AI Prompt</span>
+                    <textarea
+                      value={form.aiPrompt ?? ''}
+                      onChange={(event) => setForm((prev) => ({ ...prev, aiPrompt: event.target.value }))}
+                      placeholder="Ask AI to generate message content (e.g. 'Write a funny morning greeting')"
+                      rows={2}
+                      required
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                    />
+                  </label>
+                  <div className="grid gap-4">
+                    <label className="grid gap-2 text-sm text-neutral-700">
+                      <span className="flex items-center justify-between">
+                        AI Model (optional)
+                        <a 
+                          href="https://developers.cloudflare.com/workers-ai/models/" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
+                        >
+                          View supported models
+                        </a>
+                      </span>
+                      <input
+                        value={form.aiModel ?? ''}
+                        onChange={(event) => setForm((prev) => ({ ...prev, aiModel: event.target.value }))}
+                        placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-neutral-700">
+                      <span>AI System Prompt (optional)</span>
+                      <textarea
+                        value={form.aiSystemPrompt ?? ''}
+                        onChange={(event) => setForm((prev) => ({ ...prev, aiSystemPrompt: event.target.value }))}
+                        placeholder="You are a helpful assistant generating short notification messages. Always respond in the same language as the user's prompt."
+                        rows={2}
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-2 text-sm text-neutral-700 mt-2">
                 <span>Schedule type</span>
                 <div className="inline-flex gap-2 rounded-full bg-neutral-100 p-1">
                   <button
@@ -382,7 +450,21 @@ export default function App() {
               </div>
               {scheduleType === 'once' ? (
                 <label className="grid gap-2 text-sm text-neutral-700">
-                                    <span>Run at ({SERVER_TIMEZONE})</span>
+                  <div className="flex items-center justify-between">
+                    <span>Run at ({SERVER_TIMEZONE})</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        const offset = now.getTimezoneOffset() * 60000;
+                        const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
+                        setDatetimeValue(localISOTime);
+                      }}
+                      className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-neutral-900 transition-colors"
+                    >
+                      Set to Now
+                    </button>
+                  </div>
                   <input
                     type="datetime-local"
                     value={datetimeValue}

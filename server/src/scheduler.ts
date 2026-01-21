@@ -46,6 +46,8 @@ export class SchedulerDO implements DurableObject {
         message: body.message,
         title: body.title,
         aiPrompt: body.aiPrompt,
+        aiModel: body.aiModel,
+        aiSystemPrompt: body.aiSystemPrompt,
         schedule: body.schedule,
         pushover: body.pushover,
         createdAt: new Date().toISOString(),
@@ -107,6 +109,8 @@ export class SchedulerDO implements DurableObject {
         message: body.message,
         title: body.title,
         aiPrompt: body.aiPrompt,
+        aiModel: body.aiModel,
+        aiSystemPrompt: body.aiSystemPrompt,
         schedule: body.schedule,
         pushover: body.pushover,
       };
@@ -204,9 +208,12 @@ export class SchedulerDO implements DurableObject {
 
       if (task.aiPrompt && this.env.AI) {
         try {
-          const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', {
+          const model = task.aiModel || '@cf/meta/llama-3.1-8b-instruct-fast';
+          const systemPrompt = task.aiSystemPrompt || 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.';
+          
+          const response = await this.env.AI.run(model, {
             messages: [
-              { role: 'system', content: 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.' },
+              { role: 'system', content: systemPrompt },
               { role: 'user', content: task.aiPrompt }
             ],
             max_tokens: 100
