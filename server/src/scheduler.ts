@@ -248,6 +248,7 @@ export class SchedulerDO implements DurableObject {
       return now >= this.parseDateTimeInTimeZone(task.schedule.datetime!, timeZone);
     } else if (task.schedule.type === 'repeat') {
       if (!task.lastRun) {
+        if (this.matchesCron(task.schedule.cron!, now, timeZone)) return true;
         return now >= this.getNextCronTime(task.schedule.cron!, timeZone);
       }
       return now >= this.getNextCronTimeAfter(task.schedule.cron!, new Date(task.lastRun), timeZone);
