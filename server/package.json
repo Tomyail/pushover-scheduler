@@ -7,7 +7,7 @@
     "dev": "mkdir -p ../web/dist && wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "test": "bash test.sh",
+    "test": "vitest run",
     "test:manual": "bash test-manual.sh"
   },
   "keywords": [
@@ -20,6 +20,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
     "typescript": "^5.7.2",
+    "vitest": "^2.1.9",
     "wrangler": "^4.59.2"
   },
   "dependencies": {
