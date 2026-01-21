@@ -18,6 +18,7 @@ export interface PushoverParams {
 export interface ScheduleRequest {
   message: string;
   title?: string;
+  aiPrompt?: string;
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
 }
@@ -28,6 +29,7 @@ export interface ExecutionLog {
   status: 'success' | 'failed';
   response?: string;
   error?: string;
+  aiGeneratedMessage?: string;
 }
 
 // 任务状态（存储在 Durable Object 中）
@@ -35,6 +37,7 @@ export interface Task {
   id: string;
   message: string;
   title?: string;
+  aiPrompt?: string;
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
   createdAt: string;
@@ -46,6 +49,7 @@ export interface Task {
 export interface Env {
   // Durable Object 绑定
   SCHEDULER: DurableObjectNamespace;
+  AI: any;
   // Pushover 配置
   PUSHOVER_API_URL: string;
   PUSHOVER_USER_KEY: string;

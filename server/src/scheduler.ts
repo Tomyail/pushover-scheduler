@@ -26,8 +26,8 @@ export class SchedulerDO implements DurableObject {
     this.app.post('/schedule', async (c) => {
       const body = (await c.req.json()) as ScheduleRequest;
       
-      if (!body.message || !body.schedule) {
-        return c.json({ error: 'message and schedule are required' }, 400);
+      if ((!body.message && !body.aiPrompt) || !body.schedule) {
+        return c.json({ error: 'message or aiPrompt and schedule are required' }, 400);
       }
 
       if (body.schedule.type === 'once' && !body.schedule.datetime) {
@@ -43,6 +43,7 @@ export class SchedulerDO implements DurableObject {
         id: taskId,
         message: body.message,
         title: body.title,
+        aiPrompt: body.aiPrompt,
         schedule: body.schedule,
         pushover: body.pushover,
         createdAt: new Date().toISOString(),
@@ -123,8 +124,30 @@ export class SchedulerDO implements DurableObject {
     await Promise.all(
       tasksToRun.map(async (task) => {
         try {
+          let finalMessage = task.message;
+          let aiGeneratedMessage: string | undefined;
+
+          if (task.aiPrompt && this.env.AI) {
+            try {
+              const response = await this.env.AI.run('@cf/meta/llama-3-8b-instruct', {
+                messages: [
+                  { role: 'system', content: 'You are a helpful assistant generating short notification messages.' },
+                  { role: 'user', content: task.aiPrompt }
+                ],
+                max_tokens: 100
+              });
+              
+              if (response && response.response) {
+                aiGeneratedMessage = response.response;
+                finalMessage = aiGeneratedMessage!;
+              }
+            } catch (aiError) {
+              console.error('[AI ERROR]', aiError);
+            }
+          }
+
           const response = await this.pushover.sendNotification({
-            message: task.message,
+            message: finalMessage,
             title: task.title,
             ...task.pushover,
           });
@@ -133,6 +156,7 @@ export class SchedulerDO implements DurableObject {
             executedAt: new Date().toISOString(),
             status: 'success',
             response: `HTTP ${response.status}`,
+            aiGeneratedMessage,
           };
 
           if (task.schedule.type === 'once') {

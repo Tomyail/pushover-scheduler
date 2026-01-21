@@ -131,14 +131,15 @@ export default function App() {
     }
 
     createMutation.mutate({
-      message: form.message.trim(),
+      message: form.message.trim() || (form.aiPrompt ? 'AI Generated' : ''),
       title: form.title?.trim() || undefined,
+      aiPrompt: form.aiPrompt?.trim() || undefined,
       schedule,
       pushover,
     });
   };
 
-  const isFormValid = form.message.trim() &&
+  const isFormValid = (form.message.trim() || form.aiPrompt?.trim()) &&
     (scheduleType === 'once' ? datetimeValue : cronValue.trim());
 
   // While checking auth, show nothing or a subtle loader to prevent flickering
@@ -247,6 +248,16 @@ export default function App() {
                   value={form.title ?? ''}
                   onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                   placeholder="Short title"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-neutral-700">
+                <span>AI Prompt (optional)</span>
+                <textarea
+                  value={form.aiPrompt ?? ''}
+                  onChange={(event) => setForm((prev) => ({ ...prev, aiPrompt: event.target.value }))}
+                  placeholder="Ask AI to generate message content (e.g. 'Write a funny morning greeting')"
+                  rows={2}
                   className="rounded-2xl border border-black/10 bg-white px-4 py-2"
                 />
               </label>
@@ -467,6 +478,12 @@ function TaskRow({
                   </div>
                   {log.response && (
                     <p className="text-[10px] text-neutral-600">{log.response}</p>
+                  )}
+                  {log.aiGeneratedMessage && (
+                    <div className="mt-2 rounded bg-neutral-100 p-2">
+                      <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1">AI Generated Content</p>
+                      <p className="text-[11px] text-neutral-800 leading-relaxed italic">"{log.aiGeneratedMessage}"</p>
+                    </div>
                   )}
                   {log.error && (
                     <p className="text-[10px] text-red-600 mt-1">{log.error}</p>

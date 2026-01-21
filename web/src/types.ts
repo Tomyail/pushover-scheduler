@@ -11,12 +11,14 @@ export interface ExecutionLog {
   status: 'success' | 'failed';
   response?: string;
   error?: string;
+  aiGeneratedMessage?: string;
 }
 
 export interface Task {
   id: string;
   message: string;
   title?: string;
+  aiPrompt?: string;
   schedule: ScheduleConfig;
   createdAt: string;
   lastRun?: string;
@@ -26,6 +28,7 @@ export interface Task {
 export interface ScheduleRequest {
   message: string;
   title?: string;
+  aiPrompt?: string;
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
 }
