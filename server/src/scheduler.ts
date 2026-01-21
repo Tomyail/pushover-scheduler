@@ -1,4 +1,6 @@
 import { Hono } from 'hono';
+import { isValid, parseISO } from 'date-fns';
+import { TZDate } from '@date-fns/tz';
 import type { Task, ScheduleRequest, Env, ExecutionLog } from './types';
 import { PushoverClient } from './pushover';
 
@@ -321,32 +323,31 @@ export class SchedulerDO implements DurableObject {
 
   private parseDateTimeInTimeZone(value: string, timeZone: string): Date {
     if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(value)) return new Date(value);
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
-    if (!match) return new Date(value);
-    const utcGuess = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]), match[6] ? Number(match[6]) : 0));
-    const offsetMinutes = this.getTimeZoneOffsetMinutes(utcGuess, timeZone);
-    return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
+    const normalized = value.includes(' ') ? value.replace(' ', 'T') : value;
+    const parsed = parseISO(normalized);
+    if (!isValid(parsed)) return new Date(value);
+    return TZDate.tz(
+      timeZone,
+      parsed.getFullYear(),
+      parsed.getMonth(),
+      parsed.getDate(),
+      parsed.getHours(),
+      parsed.getMinutes(),
+      parsed.getSeconds(),
+      parsed.getMilliseconds()
+    );
   }
 
   private getLocalTimeParts(date: Date, timeZone: string) {
-    const formatter = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short' });
-    const parts = formatter.formatToParts(date);
-    const lookup = new Map(parts.map(part => [part.type, part.value]));
-    const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-    return { 
-      year: Number(lookup.get('year')), 
-      month: Number(lookup.get('month')), 
-      day: Number(lookup.get('day')), 
-      hour: Number(lookup.get('hour')), 
-      minute: Number(lookup.get('minute')), 
-      second: Number(lookup.get('second')), 
-      weekday: weekdayMap[lookup.get('weekday') || 'Sun'] ?? 0 
+    const local = new TZDate(date, timeZone);
+    return {
+      year: local.getFullYear(),
+      month: local.getMonth() + 1,
+      day: local.getDate(),
+      hour: local.getHours(),
+      minute: local.getMinutes(),
+      second: local.getSeconds(),
+      weekday: local.getDay(),
     };
-  }
-
-  private getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
-    const parts = this.getLocalTimeParts(date, timeZone);
-    const localAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-    return (localAsUtc - date.getTime()) / 60_000;
   }
 }
