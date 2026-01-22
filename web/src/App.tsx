@@ -414,9 +414,14 @@ export default function App() {
                   Cancel Edit
                 </button>
               )}
-              <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold tracking-wide">
-                {scheduleType === 'repeat' ? 'Repeat' : 'Once'}
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                scheduleType === 'repeat' 
+                  ? 'bg-blue-50 text-blue-600' 
+                  : 'bg-orange-50 text-orange-600'
+              }`}>
+                {scheduleType}
               </span>
+
             </div>
             <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
               <div className="grid gap-2 text-sm text-neutral-700">
@@ -452,7 +457,7 @@ export default function App() {
                       onChange={(event) => setForm((prev) => ({ ...prev, message: event.target.value }))}
                       placeholder="Your notification message"
                       required
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                     />
                   </label>
                   <label className="grid gap-2 text-sm text-neutral-700">
@@ -461,7 +466,7 @@ export default function App() {
                       value={form.title ?? ''}
                       onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                       placeholder="Short title"
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                     />
                   </label>
                 </div>
@@ -475,7 +480,7 @@ export default function App() {
                       placeholder="Ask AI to generate message content"
                       rows={2}
                       required
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                     />
                   </label>
                   <label className="grid gap-2 text-sm text-neutral-700">
@@ -484,7 +489,7 @@ export default function App() {
                       value={form.title ?? ''}
                       onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                       placeholder="Static notification title"
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                     />
                   </label>
                   <div className="grid gap-4">
@@ -504,7 +509,7 @@ export default function App() {
                         value={form.aiModel ?? ''}
                         onChange={(event) => setForm((prev) => ({ ...prev, aiModel: event.target.value }))}
                         placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
-                        className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                       />
                     </label>
                     <label className="grid gap-2 text-sm text-neutral-700">
@@ -514,7 +519,7 @@ export default function App() {
                         onChange={(event) => setForm((prev) => ({ ...prev, aiSystemPrompt: event.target.value }))}
                         placeholder="You are a helpful assistant generating short notification messages. Always respond in the same language as the user's prompt."
                         rows={2}
-                        className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                       />
                     </label>
                   </div>
@@ -566,7 +571,7 @@ export default function App() {
                     value={datetimeValue}
                     onChange={(event) => setDatetimeValue(event.target.value)}
                     required
-                    className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                   />
                 </label>
               ) : (
@@ -577,7 +582,7 @@ export default function App() {
                     onChange={(event) => setCronValue(event.target.value)}
                     placeholder="0 9 * * *"
                     required
-                    className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                   />
                 </label>
               )}
@@ -587,7 +592,7 @@ export default function App() {
                   value={form.pushoverJson}
                   onChange={(event) => setForm(prev => ({ ...prev, pushoverJson: event.target.value }))}
                   rows={4}
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
                   placeholder={fetchedDefaultExtras ? JSON.stringify(fetchedDefaultExtras.defaultExtras, null, 2) : '{"sound":"pushover"}'}
                 />
 
@@ -772,7 +777,6 @@ export default function App() {
 
 
                 <div className="bg-neutral-50 rounded-2xl p-6 border border-black/5">
-                  <h3 className="text-sm font-bold text-neutral-800 mb-3">Quick Reference</h3>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-neutral-800">Quick Reference</h3>
                     <a
