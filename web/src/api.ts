@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ScheduleRequest, Task, ExecutionLog } from './types';
+import type { ScheduleRequest, Task, ExecutionLog, Settings } from './types';
 
 export const api = axios.create({
   baseURL: '/api',
@@ -63,3 +63,13 @@ export async function deleteTask(taskId: string): Promise<void> {
 export async function triggerTask(taskId: string): Promise<void> {
   await api.post(`/tasks/${taskId}/trigger`);
 }
+
+export async function getDefaultExtras(): Promise<Settings> {
+  const response = await api.get<Settings>('/settings/default-extras');
+  return response.data;
+}
+
+export async function setDefaultExtras(settings: Settings): Promise<void> {
+  await api.put('/settings/default-extras', settings);
+}
+

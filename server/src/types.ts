@@ -65,3 +65,12 @@ export interface Env {
   // Static assets binding
   ASSETS: Fetcher;
 }
+
+export interface Settings {
+  defaultExtras: Record<string, string | number | boolean>;
+  defaultAiModel?: string;
+  defaultAiSystemPrompt?: string;
+  defaultCron?: string;
+}
+
+

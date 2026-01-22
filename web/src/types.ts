@@ -37,3 +37,10 @@ export interface ScheduleRequest {
   schedule: ScheduleConfig;
   pushover?: Record<string, string | number | boolean>;
 }
+export interface Settings {
+  defaultExtras: Record<string, string | number | boolean>;
+  defaultAiModel?: string;
+  defaultAiSystemPrompt?: string;
+  defaultCron?: string;
+}
+

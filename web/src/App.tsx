@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout, triggerTask } from './api';
-import type { ScheduleRequest, ScheduleType, Task, ExecutionLog } from './types';
+import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout, triggerTask, getDefaultExtras, setDefaultExtras } from './api';
+import type { ScheduleRequest, ScheduleType, Task, ExecutionLog, Settings } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
   message: '',
@@ -40,12 +40,22 @@ function formatDateTime(value?: string) {
 }
 
 export default function App() {
-  const [form, setForm] = useState<ScheduleRequest>(() => defaultSchedule());
-  const [cronValue, setCronValue] = useState('0 9 * * *');
+  const [form, setForm] = useState<Omit<ScheduleRequest, 'pushover'> & { pushoverJson: string }>(() => ({
+    ...defaultSchedule(),
+    pushoverJson: ''
+  }));
+
+
+  const [cronValue, setCronValue] = useState('');
   const [datetimeValue, setDatetimeValue] = useState('');
-  const [sendingExtras, setSendingExtras] = useState('{"sound":"pushover"}');
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState<Settings | null>(null);
+  const [settingsDraftExtrasText, setSettingsDraftExtrasText] = useState('');
+
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
   const [password, setPassword] = useState('');
   const [showLogin, setShowLogin] = useState(false); // Default to false to prevent flicker
   const queryClient = useQueryClient();
@@ -63,6 +73,68 @@ export default function App() {
 
   // Decide what to show based on auth check
   const effectiveShowLogin = showLogin || isNotAuthenticated;
+
+  // Default extras query
+  const { data: fetchedDefaultExtras } = useQuery({
+    queryKey: ['defaultExtras'],
+    queryFn: getDefaultExtras,
+    enabled: !effectiveShowLogin && !isAuthChecking,
+    staleTime: Infinity,
+  });
+
+  // Handle form reset helper
+  const resetForm = () => {
+    setEditingTaskId(null);
+    setForm({ ...defaultSchedule(), pushoverJson: '' });
+    setDatetimeValue('');
+    setCronValue(fetchedDefaultExtras?.defaultCron || '0 9 * * *');
+  };
+
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && settingsOpen) {
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [settingsOpen]);
+
+  // Update local state when fetched
+  useEffect(() => {
+    if (fetchedDefaultExtras) {
+      // Initialize settingsDraft when fetched
+      setSettingsDraft(fetchedDefaultExtras);
+
+      // If we are NOT editing a task, sync the creation form with new defaults
+      if (!editingTaskId) {
+        setForm(prev => ({
+          ...prev,
+          aiModel: prev.aiModel || fetchedDefaultExtras.defaultAiModel,
+          aiSystemPrompt: prev.aiSystemPrompt || fetchedDefaultExtras.defaultAiSystemPrompt,
+          pushoverJson: prev.pushoverJson || (fetchedDefaultExtras.defaultExtras ? JSON.stringify(fetchedDefaultExtras.defaultExtras, null, 2) : ''),
+        }));
+        setCronValue(fetchedDefaultExtras.defaultCron || '0 9 * * *');
+      }
+    }
+  }, [fetchedDefaultExtras, editingTaskId]);
+
+
+
+
+  // Set default extras mutation
+  const setDefaultExtrasMutation = useMutation({
+    mutationFn: setDefaultExtras,
+    onSuccess: (data: any) => {
+      // The mutation actually returns the settings from server if implemented that way, 
+      // but setDefaultExtras returns void currently. Let's assume we re-fetch or use variables.
+      queryClient.invalidateQueries({ queryKey: ['defaultExtras'] });
+      setSettingsOpen(false);
+    },
+  });
+
 
   // Tasks Query - only runs if authenticated
   const { data: tasks = [], isLoading: isTasksLoading, error: tasksError } = useQuery({
@@ -84,24 +156,19 @@ export default function App() {
     mutationFn: createTask,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setForm(defaultSchedule());
-      setDatetimeValue('');
-      setCronValue('0 9 * * *');
-      setSendingExtras('{"sound":"pushover"}');
+      resetForm();
     },
   });
+
 
   const updateMutation = useMutation({
     mutationFn: ({ taskId, payload }: { taskId: string; payload: ScheduleRequest }) => updateTask(taskId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setEditingTaskId(null);
-      setForm(defaultSchedule());
-      setDatetimeValue('');
-      setCronValue('0 9 * * *');
-      setSendingExtras('{"sound":"pushover"}');
+      resetForm();
     },
   });
+
 
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
@@ -143,26 +210,23 @@ export default function App() {
       aiModel: task.aiModel,
       aiSystemPrompt: task.aiSystemPrompt,
       schedule: task.schedule,
-      pushover: task.pushover,
+      pushoverJson: task.pushover ? JSON.stringify(task.pushover, null, 2) : '',
     });
+
+
     if (task.schedule.type === 'repeat' && task.schedule.cron) {
       setCronValue(task.schedule.cron);
     } else if (task.schedule.type === 'once' && task.schedule.datetime) {
       setDatetimeValue(task.schedule.datetime);
     }
-    if (task.pushover) {
-      setSendingExtras(JSON.stringify(task.pushover, null, 2));
-    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+
   const handleCancelEdit = () => {
-    setEditingTaskId(null);
-    setForm(defaultSchedule());
-    setDatetimeValue('');
-    setCronValue('0 9 * * *');
-    setSendingExtras('{"sound":"pushover"}');
+    resetForm();
   };
+
 
   const { data: logs = [], isLoading: logsLoading } = useQuery({
     queryKey: ['taskLogs', expandedTaskId],
@@ -178,24 +242,28 @@ export default function App() {
       ? { type: 'repeat' as ScheduleType, cron: cronValue }
       : { type: 'once' as ScheduleType, datetime: datetimeValue };
 
-    let pushover: Record<string, string | number | boolean> | undefined;
-    if (sendingExtras.trim()) {
+    let pushoverObj: Record<string, string | number | boolean> | undefined;
+    if (form.pushoverJson.trim()) {
       try {
-        const parsed = JSON.parse(sendingExtras);
+        const parsed = JSON.parse(form.pushoverJson);
         if (parsed && typeof parsed === 'object') {
-          pushover = parsed;
+          pushoverObj = parsed;
         }
       } catch {
-        pushover = undefined;
+        pushoverObj = undefined;
       }
     }
 
+    const { pushoverJson: _, ...restForm } = form;
     return {
-      ...form,
+      ...restForm,
       schedule,
-      pushover,
+      pushover: pushoverObj,
     };
-  }, [cronValue, datetimeValue, form, scheduleType, sendingExtras]);
+
+
+  }, [cronValue, datetimeValue, form, scheduleType]);
+
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -203,15 +271,18 @@ export default function App() {
       ? { type: 'repeat' as ScheduleType, cron: cronValue.trim() }
       : { type: 'once' as ScheduleType, datetime: datetimeValue };
 
-    let pushover: Record<string, string | number | boolean> | undefined;
-    if (sendingExtras.trim()) {
+    let parsedPushover: Record<string, string | number | boolean> | undefined;
+    if (form.pushoverJson.trim()) {
       try {
-        pushover = JSON.parse(sendingExtras);
+        parsedPushover = JSON.parse(form.pushoverJson);
       } catch {
         alert('Pushover extras must be valid JSON.');
         return;
       }
     }
+
+
+
 
     const payload = {
       message: form.message.trim() || (form.aiPrompt ? 'AI Generated' : ''),
@@ -220,7 +291,7 @@ export default function App() {
       aiModel: form.aiModel?.trim() || undefined,
       aiSystemPrompt: form.aiSystemPrompt?.trim() || undefined,
       schedule,
-      pushover,
+      pushover: parsedPushover,
     };
 
     if (editingTaskId) {
@@ -297,14 +368,30 @@ export default function App() {
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.25)]" />
                 <strong className="text-sm tracking-wide text-neutral-800">Worker status</strong>
               </div>
-              <button
-                className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100 disabled:opacity-50"
-                type="button"
-                onClick={() => logoutMutation.mutate()}
-                disabled={logoutMutation.isPending}
-              >
-                {logoutMutation.isPending ? 'Signing out...' : 'Logout'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+                  type="button"
+                  onClick={() => {
+                    const current = fetchedDefaultExtras || { defaultExtras: { sound: 'pushover' } };
+                    setSettingsDraft(current);
+                    setSettingsDraftExtrasText(JSON.stringify(current.defaultExtras, null, 2));
+                    setSettingsOpen(true);
+                  }}
+
+
+                >
+                  {settingsOpen ? 'Close Settings' : 'Settings'}
+                </button>
+                <button
+                  className="rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100 disabled:opacity-50"
+                  type="button"
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                >
+                  {logoutMutation.isPending ? 'Signing out...' : 'Logout'}
+                </button>
+              </div>
             </div>
             <p className="mt-4 text-sm text-neutral-600">
               Use <code className="rounded bg-neutral-100 px-2 py-0.5 text-xs">/schedule</code> and{' '}
@@ -497,12 +584,16 @@ export default function App() {
               <label className="grid gap-2 text-sm text-neutral-700">
                 <span>Pushover extras (JSON)</span>
                 <textarea
-                  value={sendingExtras}
-                  onChange={(event) => setSendingExtras(event.target.value)}
+                  value={form.pushoverJson}
+                  onChange={(event) => setForm(prev => ({ ...prev, pushoverJson: event.target.value }))}
                   rows={4}
                   className="rounded-2xl border border-black/10 bg-white px-4 py-2"
+                  placeholder={fetchedDefaultExtras ? JSON.stringify(fetchedDefaultExtras.defaultExtras, null, 2) : '{"sound":"pushover"}'}
                 />
+
               </label>
+
+
               <button
                 type="submit"
                 className="rounded-2xl bg-linear-to-br from-[#ff7a59] to-[#ff5530] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(255,85,48,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -566,32 +657,198 @@ export default function App() {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
-              <h2 className="text-xl font-semibold text-neutral-900">Pushover extras</h2>
-              <p className="mt-3 text-sm text-neutral-600">
-                The JSON below is passed directly to the Pushover API. See the full list of optional parameters at{' '}
-                <a
-                  className="font-semibold text-neutral-900 underline decoration-neutral-300 underline-offset-4"
-                  href="https://pushover.net/api"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  pushover.net/api
-                </a>.
-              </p>
-              <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs text-neutral-600">
-                <div className="grid gap-2">
-                  <p><span className="font-semibold text-neutral-800">priority</span> −2..2, with 2 requiring <code className="rounded bg-neutral-100 px-1">retry</code> + <code className="rounded bg-neutral-100 px-1">expire</code></p>
-                  <p><span className="font-semibold text-neutral-800">sound</span> custom alert tone</p>
-                  <p><span className="font-semibold text-neutral-800">device</span> target device name</p>
-                  <p><span className="font-semibold text-neutral-800">url</span> &amp; <span className="font-semibold text-neutral-800">url_title</span> link attachments</p>
-                  <p><span className="font-semibold text-neutral-800">html</span> enable HTML formatting (1)</p>
-                  <p><span className="font-semibold text-neutral-800">ttl</span> discard message after N seconds</p>
-                </div>
-              </div>
-            </section>
           </div>
         </main>
+
+
+        {/* Settings Modal */}
+        {settingsOpen && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/40 backdrop-blur-sm"
+            onClick={() => setSettingsOpen(false)}
+          >
+
+            <div 
+              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-white rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border border-black/5 overflow-hidden animate-in fade-in zoom-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+
+              <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-neutral-50/50">
+                <div>
+                  <h2 className="text-xl font-bold text-neutral-900">Default Settings</h2>
+                  <p className="text-xs text-neutral-500 mt-1">Configure global preferences for new tasks</p>
+                </div>
+                <button 
+                  onClick={() => setSettingsOpen(false)}
+                  className="p-2 rounded-full hover:bg-neutral-200 transition-colors"
+                >
+                  <svg className="w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+
+                {/* AI Settings Group */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">AI Generation Defaults</h3>
+                  <div className="grid gap-4">
+                    <label className="grid gap-2 text-sm text-neutral-700">
+                      <span className="flex items-center justify-between">
+                        Default AI Model
+                        <a 
+                          href="https://developers.cloudflare.com/workers-ai/models/" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
+                        >
+                          View supported models
+                        </a>
+                      </span>
+                      <input
+                        value={settingsDraft?.defaultAiModel || ''}
+                        onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultAiModel: e.target.value }) : null)}
+                        placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
+                        className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-neutral-700">
+                      <span>Default System Prompt</span>
+                      <textarea
+                        value={settingsDraft?.defaultAiSystemPrompt || ''}
+                        onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultAiSystemPrompt: e.target.value }) : null)}
+                        rows={3}
+                        placeholder="System prompt instructions..."
+                        className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-neutral-700">
+
+                      <span>Default Cron Schedule</span>
+                      <input
+                        value={settingsDraft?.defaultCron || ''}
+                        onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultCron: e.target.value }) : null)}
+                        placeholder="0 9 * * *"
+                        className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+
+                {/* Pushover Settings Group */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Pushover Extras</h3>
+                    <div className="flex gap-2">
+                       <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            const currentExtras = JSON.parse(settingsDraftExtrasText);
+                            setSettingsDraftExtrasText(JSON.stringify({ ...currentExtras, priority: 1, sound: 'alien' }, null, 2));
+                          } catch {
+                            setSettingsDraftExtrasText(JSON.stringify({ priority: 1, sound: 'alien' }, null, 2));
+                          }
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-wider text-[#ff5530] hover:opacity-80"
+                      >
+                        + Add Example Params
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-neutral-600 mb-4">
+                    Merge these JSON parameters into every new notification by default.
+                  </p>
+                  <textarea
+                    value={settingsDraftExtrasText}
+                    onChange={(event) => setSettingsDraftExtrasText(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all"
+                    placeholder='{"sound": "pushover"}'
+                  />
+                </div>
+
+
+                <div className="bg-neutral-50 rounded-2xl p-6 border border-black/5">
+                  <h3 className="text-sm font-bold text-neutral-800 mb-3">Quick Reference</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-neutral-800">Quick Reference</h3>
+                    <a
+                      className="text-[10px] font-bold text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
+                      href="https://pushover.net/api"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Pushover API docs
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-neutral-500">
+                    <div className="flex justify-between border-b border-black/5 pb-1">
+                      <span className="font-medium text-neutral-700">priority</span>
+                      <span>-2 to 2</span>
+                    </div>
+                    <div className="flex justify-between border-b border-black/5 pb-1">
+                      <span className="font-medium text-neutral-700">sound</span>
+                      <span>tone name</span>
+                    </div>
+                    <div className="flex justify-between border-b border-black/5 pb-1">
+                      <span className="font-medium text-neutral-700">device</span>
+                      <span>target device</span>
+                    </div>
+                    <div className="flex justify-between border-b border-black/5 pb-1">
+                      <span className="font-medium text-neutral-700">html</span>
+                      <span>1 (enable)</span>
+                    </div>
+                    <div className="flex justify-between border-b border-black/5 pb-1">
+                      <span className="font-medium text-neutral-700">url / url_title</span>
+                      <span>link</span>
+                    </div>
+                    <div className="flex justify-between border-b border-black/5 pb-1">
+                      <span className="font-medium text-neutral-700">ttl</span>
+                      <span>seconds</span>
+                    </div>
+                  </div>
+                </div>
+
+
+                </div>
+
+              <div className="px-8 py-6 border-t border-black/5 bg-neutral-50/50 flex gap-3">
+                <button
+                  onClick={() => {
+                    if (!settingsDraft) return;
+                    try {
+                      const parsedExtras = JSON.parse(settingsDraftExtrasText);
+                      const finalSettings: Settings = {
+                        ...settingsDraft,
+                        defaultExtras: parsedExtras
+                      };
+                      setDefaultExtrasMutation.mutate(finalSettings);
+                    } catch {
+                      alert('Invalid data: Please check your JSON syntax in Pushover Extras');
+                    }
+                  }}
+                  className="flex-1 rounded-2xl bg-neutral-900 px-6 py-4 text-sm font-bold text-white shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-50 active:scale-[0.98]"
+                  disabled={setDefaultExtrasMutation.isPending}
+                >
+                  {setDefaultExtrasMutation.isPending ? 'Saving Settings...' : 'Save Preferences'}
+                </button>
+
+                <button
+                  onClick={() => setSettingsOpen(false)}
+                  className="px-6 py-4 rounded-2xl border border-black/10 text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
       </div>
     </div>
   );

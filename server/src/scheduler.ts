@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { isValid, parseISO } from 'date-fns';
 import { TZDate } from '@date-fns/tz';
-import type { Task, ScheduleRequest, Env, ExecutionLog } from './types';
+import type { Task, ScheduleRequest, Env, ExecutionLog, Settings } from './types';
 import { PushoverClient } from './pushover';
 
 export class SchedulerDO implements DurableObject {
@@ -18,6 +18,37 @@ export class SchedulerDO implements DurableObject {
   }
 
   private setupRoutes() {
+    // Get settings
+    this.app.get('/settings/default-extras', async (c) => {
+      const settings = await this.state.storage.get<Settings>('setting:global');
+      const oldExtras = await this.state.storage.get<Record<string, string | number | boolean>>('setting:default-extras');
+      
+      const defaultSettings: Settings = {
+        defaultExtras: oldExtras || { sound: 'pushover' },
+        defaultAiModel: '@cf/meta/llama-3.1-8b-instruct-fast',
+        defaultAiSystemPrompt: 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.',
+        defaultCron: '0 9 * * *'
+      };
+
+
+      return c.json({ ...(settings || defaultSettings) });
+    });
+
+    // Set settings
+    this.app.put('/settings/default-extras', async (c) => {
+      try {
+        const body = await c.req.json();
+        if (typeof body !== 'object' || body === null) {
+          return c.json({ error: 'Invalid JSON object' }, 400);
+        }
+        await this.state.storage.put('setting:global', body);
+        return c.json({ success: true, ...body });
+      } catch {
+        return c.json({ error: 'Invalid JSON' }, 400);
+      }
+    });
+
+
     // List all tasks
     this.app.get('/tasks', async (c) => {
       const tasks = await this.listAllTasks();
@@ -203,13 +234,19 @@ export class SchedulerDO implements DurableObject {
    */
   private async executeTask(task: Task, isManual: boolean): Promise<{ aiGeneratedMessage?: string }> {
     try {
+      const settings = await this.state.storage.get<Settings>('setting:global');
+      const defaultAiModel = settings?.defaultAiModel || '@cf/meta/llama-3.1-8b-instruct-fast';
+      const defaultSystemPrompt = settings?.defaultAiSystemPrompt || 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.';
+      const defaultExtras = settings?.defaultExtras || { sound: 'pushover' };
+
       let finalMessage = task.message;
       let aiGeneratedMessage: string | undefined;
 
+
       if (task.aiPrompt && this.env.AI) {
         try {
-          const model = task.aiModel || '@cf/meta/llama-3.1-8b-instruct-fast';
-          const systemPrompt = task.aiSystemPrompt || 'You are a helpful assistant generating short notification messages. Always respond in the same language as the user\'s prompt.';
+          const model = task.aiModel || defaultAiModel;
+          const systemPrompt = task.aiSystemPrompt || defaultSystemPrompt;
           
           const response = await this.env.AI.run(model, {
             messages: [
@@ -232,8 +269,10 @@ export class SchedulerDO implements DurableObject {
       const response = await this.pushover.sendNotification({
         message: finalMessage,
         title: task.title,
+        ...defaultExtras,
         ...task.pushover,
       });
+
 
       const executionLog: ExecutionLog = {
         executedAt: new Date().toISOString(),
