@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout, triggerTask, getDefaultExtras, setDefaultExtras } from './api';
+import { createTask, updateTask, deleteTask, listTasks, getTaskLogs, login, logout, triggerTask, getDefaultExtras, setDefaultExtras, parseInput } from './api';
 import type { ScheduleRequest, ScheduleType, Task, ExecutionLog, Settings } from './types';
 
 const defaultSchedule = (): ScheduleRequest => ({
@@ -16,7 +16,7 @@ const SERVER_TIMEZONE = 'Asia/Shanghai'; // This should ideally come from an API
 
 function formatDateTime(value?: string) {
   if (!value) return '-';
-  
+
   // If it looks like a cron expression (contains spaces and doesn't look like an ISO date)
   if (value.includes(' ') && !value.includes('T') && !value.includes('-')) {
     return value;
@@ -58,6 +58,12 @@ export default function App() {
 
   const [password, setPassword] = useState('');
   const [showLogin, setShowLogin] = useState(false); // Default to false to prevent flicker
+
+  // Magic Input State
+  const [magicPrompt, setMagicPrompt] = useState('');
+  const [isMagicLoading, setIsMagicLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
   const queryClient = useQueryClient();
 
   // Check Auth Query - runs on mount
@@ -174,7 +180,7 @@ export default function App() {
     mutationFn: deleteTask,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   });
-  
+
   const triggerMutation = useMutation({
     mutationFn: triggerTask,
     onSuccess: () => {
@@ -264,6 +270,45 @@ export default function App() {
 
   }, [cronValue, datetimeValue, form, scheduleType]);
 
+
+  const handleMagicSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!magicPrompt.trim()) return;
+
+    setIsMagicLoading(true);
+    try {
+      const result = await parseInput(magicPrompt);
+
+      setForm(prev => ({
+        ...prev,
+        ...result,
+        schedule: {
+          ...prev.schedule,
+          ...(result.schedule || {}),
+        },
+        // We need to handle schedule specifically
+      }));
+
+      // Update local state helpers for inputs
+      if (result.schedule?.type === 'repeat' && result.schedule.cron) {
+        setCronValue(result.schedule.cron);
+      }
+      if (result.schedule?.type === 'once' && result.schedule.datetime) {
+        setDatetimeValue(result.schedule.datetime);
+      }
+
+      // Update form state schedule type as well to switch tabs
+      if (result.schedule?.type) {
+        setForm(prev => ({ ...prev, schedule: { ...prev.schedule, type: result.schedule!.type } }));
+      }
+
+    } catch (err) {
+      console.error('Magic input failed', err);
+      alert('Failed to process magic input');
+    } finally {
+      setIsMagicLoading(false);
+    }
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -414,33 +459,76 @@ export default function App() {
                   Cancel Edit
                 </button>
               )}
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                scheduleType === 'repeat' 
-                  ? 'bg-blue-50 text-blue-600' 
-                  : 'bg-orange-50 text-orange-600'
-              }`}>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${scheduleType === 'repeat'
+                ? 'bg-blue-50 text-blue-600'
+                : 'bg-orange-50 text-orange-600'
+                }`}>
                 {scheduleType}
               </span>
 
             </div>
+
+            {/* Magic Input Section */}
+            {!editingTaskId && (
+              <div className="mt-6 mb-2">
+                <form onSubmit={handleMagicSubmit} className="relative group">
+                  <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-lg transition-transform ${isListening ? 'animate-pulse scale-125' : 'group-focus-within:scale-110'}`}>
+                    {isListening ? '🎙️' : '✨'}
+                  </div>
+                  <input
+                    value={magicPrompt}
+                    onChange={(e) => setMagicPrompt(e.target.value)}
+                    placeholder={isListening ? "Listening..." : "Type naturally... e.g. 'Remind me to check oven in 10 mins'"}
+                    className={`w-full rounded-2xl border bg-neutral-50 py-3 pl-12 pr-20 text-sm font-medium text-neutral-800 placeholder-neutral-400 outline-none transition-all focus:bg-white shadow-[0_2px_10px_rgba(0,0,0,0.02)] ${isListening
+                      ? 'border-red-400 ring-2 ring-red-100 bg-red-50/50 placeholder-red-400'
+                      : 'border-black/10 focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900/10'
+                      }`}
+                    disabled={isMagicLoading || isListening}
+                  />
+
+                  {/* Actions: Fill Button (Text) OR Mic Button (Empty) */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {magicPrompt.trim() ? (
+                      <button
+                        type="submit"
+                        disabled={isMagicLoading}
+                        className="rounded-xl bg-neutral-900 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-neutral-800 active:scale-95 animate-in fade-in slide-in-from-right-4"
+                      >
+                        {isMagicLoading ? '...' : 'Fill'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsListening(!isListening)}
+                        className={`p-2 rounded-xl transition-all hover:bg-black/5 active:scale-95 ${isListening ? 'text-red-500 bg-red-50' : 'text-neutral-400 hover:text-neutral-600'}`}
+                        title="Voice Input"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
               <div className="grid gap-2 text-sm text-neutral-700">
                 <span>Content type</span>
                 <div className="inline-flex gap-2 rounded-full bg-neutral-100 p-1 w-fit">
                   <button
                     type="button"
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
-                      !form.aiPrompt && form.aiPrompt !== '' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${!form.aiPrompt && form.aiPrompt !== '' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
+                      }`}
                     onClick={() => setForm((prev) => ({ ...prev, aiPrompt: undefined, aiModel: undefined, aiSystemPrompt: undefined }))}
                   >
                     Simple Text
                   </button>
                   <button
                     type="button"
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
-                      typeof form.aiPrompt === 'string' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${typeof form.aiPrompt === 'string' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
+                      }`}
                     onClick={() => setForm((prev) => ({ ...prev, aiPrompt: '' }))}
                   >
                     AI Generation
@@ -496,9 +584,9 @@ export default function App() {
                     <label className="grid gap-2 text-sm text-neutral-700">
                       <span className="flex items-center justify-between">
                         AI Model (optional)
-                        <a 
-                          href="https://developers.cloudflare.com/workers-ai/models/" 
-                          target="_blank" 
+                        <a
+                          href="https://developers.cloudflare.com/workers-ai/models/"
+                          target="_blank"
                           rel="noreferrer"
                           className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
                         >
@@ -531,18 +619,16 @@ export default function App() {
                 <div className="inline-flex gap-2 rounded-full bg-neutral-100 p-1">
                   <button
                     type="button"
-                    className={`rounded-full px-4 py-2 text-sm ${
-                      scheduleType === 'once' ? 'bg-neutral-900 text-white' : 'text-neutral-600'
-                    }`}
+                    className={`rounded-full px-4 py-2 text-sm ${scheduleType === 'once' ? 'bg-neutral-900 text-white' : 'text-neutral-600'
+                      }`}
                     onClick={() => setForm((prev) => ({ ...prev, schedule: { type: 'once' } }))}
                   >
                     Once
                   </button>
                   <button
                     type="button"
-                    className={`rounded-full px-4 py-2 text-sm ${
-                      scheduleType === 'repeat' ? 'bg-neutral-900 text-white' : 'text-neutral-600'
-                    }`}
+                    className={`rounded-full px-4 py-2 text-sm ${scheduleType === 'repeat' ? 'bg-neutral-900 text-white' : 'text-neutral-600'
+                      }`}
                     onClick={() => setForm((prev) => ({ ...prev, schedule: { type: 'repeat' } }))}
                   >
                     Repeat
@@ -576,7 +662,7 @@ export default function App() {
                 </label>
               ) : (
                 <label className="grid gap-2 text-sm text-neutral-700">
-                                    <span>Cron ({SERVER_TIMEZONE})</span>
+                  <span>Cron ({SERVER_TIMEZONE})</span>
                   <input
                     value={cronValue}
                     onChange={(event) => setCronValue(event.target.value)}
@@ -668,12 +754,12 @@ export default function App() {
 
         {/* Settings Modal */}
         {settingsOpen && (
-          <div 
+          <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/40 backdrop-blur-sm"
             onClick={() => setSettingsOpen(false)}
           >
 
-            <div 
+            <div
               className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-white rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border border-black/5 overflow-hidden animate-in fade-in zoom-in duration-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -683,7 +769,7 @@ export default function App() {
                   <h2 className="text-xl font-bold text-neutral-900">Default Settings</h2>
                   <p className="text-xs text-neutral-500 mt-1">Configure global preferences for new tasks</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setSettingsOpen(false)}
                   className="p-2 rounded-full hover:bg-neutral-200 transition-colors"
                 >
@@ -702,9 +788,9 @@ export default function App() {
                     <label className="grid gap-2 text-sm text-neutral-700">
                       <span className="flex items-center justify-between">
                         Default AI Model
-                        <a 
-                          href="https://developers.cloudflare.com/workers-ai/models/" 
-                          target="_blank" 
+                        <a
+                          href="https://developers.cloudflare.com/workers-ai/models/"
+                          target="_blank"
                           rel="noreferrer"
                           className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
                         >
@@ -747,7 +833,7 @@ export default function App() {
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Pushover Extras</h3>
                     <div className="flex gap-2">
-                       <button
+                      <button
                         type="button"
                         onClick={() => {
                           try {
@@ -817,7 +903,7 @@ export default function App() {
                 </div>
 
 
-                </div>
+              </div>
 
               <div className="px-8 py-6 border-t border-black/5 bg-neutral-50/50 flex gap-3">
                 <button
@@ -890,17 +976,16 @@ function TaskRow({
             <h3 className="text-base font-semibold text-neutral-900 leading-tight line-clamp-2" title={task.title || task.message}>
               {task.title || task.message}
             </h3>
-            
+
             {/* Meta tags */}
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                task.schedule.type === 'repeat' 
-                  ? 'bg-blue-50 text-blue-600' 
-                  : 'bg-orange-50 text-orange-600'
-              }`}>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${task.schedule.type === 'repeat'
+                ? 'bg-blue-50 text-blue-600'
+                : 'bg-orange-50 text-orange-600'
+                }`}>
                 {task.schedule.type}
               </span>
-              
+
               <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-medium text-neutral-600">
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -924,7 +1009,7 @@ function TaskRow({
 
           {/* Actions */}
           <div className="flex flex-col gap-2 shrink-0 md:flex-row md:items-center">
-             <button
+            <button
               className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700 disabled:opacity-50"
               type="button"
               onClick={() => onTrigger(task.id)}
@@ -932,7 +1017,7 @@ function TaskRow({
             >
               {triggering ? 'Running...' : 'Run Now'}
             </button>
-             <button
+            <button
               className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
               type="button"
               onClick={onToggle}
@@ -964,7 +1049,7 @@ function TaskRow({
             <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-500">Execution History</h4>
             {logs.length > 0 && <span className="text-[10px] text-neutral-400">Showing last {logs.length} runs</span>}
           </div>
-          
+
           {logsLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-pulse text-xs text-neutral-400">Loading logs...</div>
@@ -980,12 +1065,10 @@ function TaskRow({
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <div className={`h-1.5 w-1.5 rounded-full ${
-                          log.status === 'success' ? 'bg-emerald-500' : 'bg-red-500'
-                        }`} />
-                        <span className={`text-[11px] font-bold uppercase tracking-tight ${
-                          log.status === 'success' ? 'text-emerald-600' : 'text-red-600'
-                        }`}>
+                        <div className={`h-1.5 w-1.5 rounded-full ${log.status === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+                          }`} />
+                        <span className={`text-[11px] font-bold uppercase tracking-tight ${log.status === 'success' ? 'text-emerald-600' : 'text-red-600'
+                          }`}>
                           {log.status === 'success' ? 'Delivered' : 'Failed'}
                         </span>
                       </div>
@@ -995,14 +1078,14 @@ function TaskRow({
                       <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-mono text-neutral-500">{log.response}</span>
                     )}
                   </div>
-                  
+
                   {log.aiGeneratedMessage && (
                     <div className="mt-3 relative rounded-lg bg-neutral-50 p-2.5 border border-black/5">
                       <div className="absolute -top-2 left-3 bg-neutral-50 px-1 text-[8px] font-bold uppercase tracking-tighter text-neutral-400">AI Preview</div>
                       <p className="text-[11px] text-neutral-700 leading-relaxed italic">“{log.aiGeneratedMessage}”</p>
                     </div>
                   )}
-                  
+
                   {log.error && (
                     <div className="mt-2 rounded-lg bg-red-50 p-2 border border-red-100">
                       <p className="text-[10px] text-red-600 font-medium">{log.error}</p>
