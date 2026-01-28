@@ -183,6 +183,99 @@ export class SchedulerDO implements DurableObject {
         return c.json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
       }
     });
+
+    // Parse natural language input
+    this.app.post('/parse-input', async (c) => {
+      if (!this.env.AI) {
+        return c.json({ error: 'AI binding is not configured' }, 500);
+      }
+
+      const { prompt } = await c.req.json();
+      if (!prompt) {
+        return c.json({ error: 'Prompt is required' }, 400);
+      }
+
+      const timeZone = this.env.TIMEZONE || 'UTC';
+      const now = new Date();
+      // Format now in server timezone for LLM context
+      const localNow = new TZDate(now, timeZone);
+      const currentTimeStr = localNow.toISOString();
+      const localTimeStr = localNow.toLocaleString('en-US', { timeZone });
+
+      const systemPrompt = `You are a scheduling assistant. Convert a natural language request into a JSON object.
+Current Time (${timeZone}): ${localTimeStr} (ISO: ${currentTimeStr})
+
+JSON Schema:
+{
+  "title": "string (required, e.g. 'Task')",
+  "message": "string (the notification content)",
+  "aiPrompt": "string (if the user wants the content generated LATER by AI, e.g., 'tell me a joke' - put that here and LEAVE 'message' EMPTY)",
+  "schedule": {
+    "type": "once" | "repeat",
+    "datetime": "ISO 8601 string (required if type='once', calculate from Current Time)",
+    "cron": "5-part cron string (required if type='repeat')"
+  }
+}
+
+Rules:
+1. One and only one of "message" or "aiPrompt" must be populated.
+2. For relative times like "in 5 minutes", use the Current Time to calculate an absolute ISO timestamp.
+3. For repeating tasks, generate a standard cron expression.
+4. Output NOTHING but the JSON object. No markdown, no triple backticks.`;
+
+      try {
+        const settings = await this.state.storage.get<Settings>('setting:global');
+        const model = settings?.defaultAiModel || '@cf/openai/gpt-oss-120b';
+
+        const response: any = await this.env.AI.run(model as any, {
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 500,
+          temperature: 0.1,
+        });
+
+        let text = '';
+        if (response && typeof response.response === 'string') {
+          text = response.response;
+        } else if (response && response.result && typeof response.result.response === 'string') {
+          text = response.result.response;
+        } else if (response && response.choices && response.choices[0]?.message?.content) {
+          text = response.choices[0].message.content;
+        }
+
+        console.log('[PARSE INPUT DEBUG] Raw Text:', text);
+
+        if (!text || text.trim() === '' || text.trim() === '{}') {
+          console.error('[PARSE INPUT DEBUG] Full Response:', JSON.stringify(response));
+          throw new Error('AI returned an empty or invalid response');
+        }
+
+        // Attempt to extract JSON from the response
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('AI did not return a valid JSON object');
+        }
+
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Final normalization: ensure datetime is in local format for the frontend input if once
+        if (parsed.schedule?.type === 'once' && parsed.schedule.datetime) {
+          // The AI might return UTC or local. We want to make sure it's YYYY-MM-DDTHH:mm format for datetime-local input
+          const date = new Date(parsed.schedule.datetime);
+          if (!isNaN(date.getTime())) {
+             const offset = date.getTimezoneOffset() * 60000;
+             parsed.schedule.datetime = new Date(date.getTime() - offset).toISOString().slice(0, 16);
+          }
+        }
+
+        return c.json(parsed);
+      } catch (err) {
+        console.error('[PARSE INPUT ERROR]', err);
+        return c.json({ error: 'Failed to parse input' }, 500);
+      }
+    });
   }
 
   async fetch(request: Request): Promise<Response> {

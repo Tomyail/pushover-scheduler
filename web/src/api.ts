@@ -74,40 +74,7 @@ export async function setDefaultExtras(settings: Settings): Promise<void> {
 }
 
 export async function parseInput(prompt: string): Promise<Partial<ScheduleRequest>> {
-  // Mock implementation for UI development
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate latency
-
-  const lower = prompt.toLowerCase();
-  const now = new Date();
-
-  // Simple heuristic mocks
-  if (lower.includes('reminder') || lower.includes('remind')) {
-    const future = new Date(now.getTime() + 10 * 60000); // +10 mins
-    const offset = future.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(future.getTime() - offset).toISOString().slice(0, 16);
-
-    return {
-      message: prompt,
-      title: 'Reminder',
-      schedule: { type: 'once', datetime: localISOTime }
-    };
-  }
-
-  if (lower.includes('daily') || lower.includes('every')) {
-    return {
-      message: prompt,
-      title: 'Daily Task',
-      schedule: { type: 'repeat', cron: '0 9 * * *' }
-    };
-  }
-
-  // Default fallback mock
-  const future = new Date(now.getTime() + 60 * 60000); // +1 hour
-  const offset = future.getTimezoneOffset() * 60000;
-  const localISOTime = new Date(future.getTime() - offset).toISOString().slice(0, 16);
-  return {
-    message: prompt,
-    schedule: { type: 'once', datetime: localISOTime }
-  };
+  const response = await api.post<Partial<ScheduleRequest>>('/parse-input', { prompt });
+  return response.data;
 }
 

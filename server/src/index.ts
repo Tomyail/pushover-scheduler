@@ -74,6 +74,7 @@ api.all('/tasks', authMiddleware, doHandler);
 api.all('/tasks/*', authMiddleware, doHandler);
 api.all('/settings', authMiddleware, doHandler);
 api.all('/settings/*', authMiddleware, doHandler);
+api.all('/parse-input', authMiddleware, doHandler);
 
 api.get('/health', (c) => c.json({ status: 'ok', version: '1.2.6' }));
 

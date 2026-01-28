@@ -279,15 +279,25 @@ export default function App() {
     try {
       const result = await parseInput(magicPrompt);
 
-      setForm(prev => ({
-        ...prev,
-        ...result,
-        schedule: {
-          ...prev.schedule,
-          ...(result.schedule || {}),
-        },
-        // We need to handle schedule specifically
-      }));
+      setForm(prev => {
+        const next = {
+          ...prev,
+          ...result,
+          schedule: {
+            ...prev.schedule,
+            ...(result.schedule || {}),
+          },
+        };
+
+        // Ensure exclusivity
+        if (result.aiPrompt) {
+          next.message = '';
+        } else if (result.message) {
+          next.aiPrompt = undefined;
+        }
+
+        return next;
+      });
 
       // Update local state helpers for inputs
       if (result.schedule?.type === 'repeat' && result.schedule.cron) {
@@ -295,11 +305,6 @@ export default function App() {
       }
       if (result.schedule?.type === 'once' && result.schedule.datetime) {
         setDatetimeValue(result.schedule.datetime);
-      }
-
-      // Update form state schedule type as well to switch tabs
-      if (result.schedule?.type) {
-        setForm(prev => ({ ...prev, schedule: { ...prev.schedule, type: result.schedule!.type } }));
       }
 
     } catch (err) {
