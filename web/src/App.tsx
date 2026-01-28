@@ -58,6 +58,7 @@ export default function App() {
 
   const [password, setPassword] = useState('');
   const [showLogin, setShowLogin] = useState(false); // Default to false to prevent flicker
+  const [activeTab, setActiveTab] = useState<'tasks' | 'create' | 'settings'>('tasks');
 
   const [isMagicLoading, setIsMagicLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -376,12 +377,12 @@ export default function App() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-7xl px-6 pb-20 pt-10">
         <header className="grid gap-8 md:grid-cols-[1.2fr_0.8fr] md:items-center">
-          <div>
+          <div className="hidden md:block text-center md:text-left">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Pushover Scheduler</p>
-            <h1 className="mt-3 text-3xl font-semibold leading-tight text-neutral-900 md:text-5xl">
-              Ship precise notifications with a calmer dashboard.
+            <h1 className="mt-3 text-3xl font-semibold leading-tight text-neutral-900 md:text-5xl lg:text-6xl">
+              Ship precise notifications.
             </h1>
-            <p className="mt-4 max-w-xl text-base text-neutral-600">
+            <p className="mt-4 max-w-xl text-base text-neutral-600 mx-auto md:mx-0">
               Manage one-off reminders and repeating alerts on the same endpoint,
               now with a lightweight control surface.
             </p>
@@ -425,480 +426,543 @@ export default function App() {
           </div>
         </header>
 
-        <main className="mt-10 grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
-          <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-neutral-900">{editingTaskId ? 'Edit task' : 'Create a task'}</h2>
-              {editingTaskId && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
-                >
-                  Cancel Edit
-                </button>
-              )}
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${scheduleType === 'repeat'
-                ? 'bg-blue-50 text-blue-600'
-                : 'bg-orange-50 text-orange-600'
-                }`}>
-                {scheduleType}
-              </span>
-            </div>
+        <main className="mt-6 lg:mt-10 pb-24 lg:pb-0">
+          <div className={`lg:grid lg:gap-8 lg:grid-cols-[0.8fr_1.2fr] ${activeTab === 'settings' ? 'hidden lg:grid' : ''}`}>
 
-            <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
-              <div className="grid gap-2 text-sm text-neutral-700">
-                <span>Content type</span>
-                <div className="inline-flex gap-2 rounded-full bg-neutral-100 p-1 w-fit">
-                  <button
-                    type="button"
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${!form.aiPrompt && form.aiPrompt !== '' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
-                      }`}
-                    onClick={() => setForm((prev) => ({ ...prev, aiPrompt: undefined, aiModel: undefined, aiSystemPrompt: undefined }))}
-                  >
-                    Simple Text
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${typeof form.aiPrompt === 'string' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
-                      }`}
-                    onClick={() => setForm((prev) => ({ ...prev, aiPrompt: '' }))}
-                  >
-                    AI Generation
-                  </button>
-                </div>
-              </div>
-
-              {typeof form.aiPrompt !== 'string' ? (
-                <div className="grid gap-4">
-                  <label className="grid gap-2 text-sm text-neutral-700">
-                    <span>Message</span>
-                    <input
-                      value={form.message}
-                      onChange={(event) => setForm((prev) => ({ ...prev, message: event.target.value }))}
-                      placeholder="Your notification message"
-                      required
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-neutral-700">
-                    <span>Title (optional)</span>
-                    <input
-                      value={form.title ?? ''}
-                      onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                      placeholder="Short title"
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                    />
-                  </label>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  <label className="grid gap-2 text-sm text-neutral-700">
-                    <span>AI Prompt</span>
-                    <textarea
-                      value={form.aiPrompt ?? ''}
-                      onChange={(event) => setForm((prev) => ({ ...prev, aiPrompt: event.target.value }))}
-                      placeholder="Ask AI to generate message content"
-                      rows={2}
-                      required
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-neutral-700">
-                    <span>Title (optional)</span>
-                    <input
-                      value={form.title ?? ''}
-                      onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                      placeholder="Static notification title"
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                    />
-                  </label>
-                  <div className="grid gap-4">
-                    <label className="grid gap-2 text-sm text-neutral-700">
-                      <span className="flex items-center justify-between">
-                        AI Model (optional)
-                        <a
-                          href="https://developers.cloudflare.com/workers-ai/models/"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
-                        >
-                          View supported models
-                        </a>
-                      </span>
-                      <input
-                        value={form.aiModel ?? ''}
-                        onChange={(event) => setForm((prev) => ({ ...prev, aiModel: event.target.value }))}
-                        placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
-                        className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-neutral-700">
-                      <span>AI System Prompt (optional)</span>
-                      <textarea
-                        value={form.aiSystemPrompt ?? ''}
-                        onChange={(event) => setForm((prev) => ({ ...prev, aiSystemPrompt: event.target.value }))}
-                        placeholder="You are a helpful assistant generating short notification messages. Always respond in the same language as the user's prompt."
-                        rows={2}
-                        className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid gap-2 text-sm text-neutral-700 mt-2">
-                <span>Schedule type</span>
-                <div className="inline-flex gap-2 rounded-full bg-neutral-100 p-1">
-                  <button
-                    type="button"
-                    className={`rounded-full px-4 py-2 text-sm ${scheduleType === 'once' ? 'bg-neutral-900 text-white' : 'text-neutral-600'
-                      }`}
-                    onClick={() => setForm((prev) => ({ ...prev, schedule: { type: 'once' } }))}
-                  >
-                    Once
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-full px-4 py-2 text-sm ${scheduleType === 'repeat' ? 'bg-neutral-900 text-white' : 'text-neutral-600'
-                      }`}
-                    onClick={() => setForm((prev) => ({ ...prev, schedule: { type: 'repeat' } }))}
-                  >
-                    Repeat
-                  </button>
-                </div>
-              </div>
-              {scheduleType === 'once' ? (
-                <label className="grid gap-2 text-sm text-neutral-700">
-                  <div className="flex items-center justify-between">
-                    <span>Run at ({SERVER_TIMEZONE})</span>
+            {/* Create Tab Wrapper */}
+            <div className={activeTab === 'create' ? 'block' : 'hidden lg:block'}>
+              <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-neutral-900">{editingTaskId ? 'Edit task' : 'Create a task'}</h2>
+                  {editingTaskId && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const now = new Date();
-                        const offset = now.getTimezoneOffset() * 60000;
-                        const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
-                        setDatetimeValue(localISOTime);
-                      }}
-                      className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-neutral-900 transition-colors"
+                      onClick={handleCancelEdit}
+                      className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
                     >
-                      Set to Now
+                      Cancel Edit
                     </button>
-                  </div>
-                  <input
-                    type="datetime-local"
-                    value={datetimeValue}
-                    onChange={(event) => setDatetimeValue(event.target.value)}
-                    required
-                    className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                  />
-                </label>
-              ) : (
-                <label className="grid gap-2 text-sm text-neutral-700">
-                  <div className="flex items-center justify-between">
-                    <span>Cron ({SERVER_TIMEZONE})</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleCronParse();
-                      }}
-                      disabled={isMagicLoading || !cronValue.trim()}
-                      className={`text-[10px] font-bold uppercase tracking-wider transition-all px-2 py-0.5 rounded-md ${
-                        isMagicLoading 
-                          ? 'text-neutral-300 bg-neutral-100 cursor-not-allowed' 
-                          : 'text-blue-500 bg-blue-50 hover:bg-blue-100'
-                      }`}
-                    >
-                      {isMagicLoading ? (
-                        <span className="flex items-center gap-1">
-                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Parsing
-                        </span>
-                      ) : '✨ Parse Semantic'}
-                    </button>
-                  </div>
-                  <input
-                    value={cronValue}
-                    onChange={(event) => setCronValue(event.target.value)}
-                    placeholder="e.g. 'Every Monday at 9am' or '0 9 * * *'"
-                    required
-                    className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all placeholder:italic"
-                  />
-                </label>
-              )}
-              <label className="grid gap-2 text-sm text-neutral-700">
-                <span>Pushover extras (JSON)</span>
-                <textarea
-                  value={form.pushoverJson}
-                  onChange={(event) => setForm(prev => ({ ...prev, pushoverJson: event.target.value }))}
-                  rows={4}
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
-                  placeholder={fetchedDefaultExtras ? JSON.stringify(fetchedDefaultExtras.defaultExtras, null, 2) : '{"sound":"pushover"}'}
-                />
-
-              </label>
-
-
-              <button
-                type="submit"
-                className="rounded-2xl bg-linear-to-br from-[#ff7a59] to-[#ff5530] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(255,85,48,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!isFormValid || createMutation.isPending || updateMutation.isPending}
-              >
-                {createMutation.isPending || updateMutation.isPending ? 'Saving...' : editingTaskId ? 'Update task' : 'Schedule notification'}
-              </button>
-              {createMutation.isError && !editingTaskId && (
-                <p className="text-sm text-red-600">Failed to create task. Check worker logs.</p>
-              )}
-              {updateMutation.isError && editingTaskId && (
-                <p className="text-sm text-red-600">Failed to update task. Check worker logs.</p>
-              )}
-            </form>
-            <div className="mt-6 rounded-2xl border border-black/10 bg-[#f5f2ee] p-4">
-              <h3 className="text-sm font-semibold text-neutral-800">Payload preview</h3>
-              <pre className="mt-3 whitespace-pre-wrap text-xs text-neutral-700">
-                {JSON.stringify(payloadPreview, null, 2)}
-              </pre>
-            </div>
-          </section>
-
-          <div className="grid gap-6">
-            <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-neutral-900">Active tasks</h2>
-                <button
-                  className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-600"
-                  type="button"
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ['tasks'] })}
-                >
-                  Refresh
-                </button>
-              </div>
-              <div className="mt-5">
-                {isTasksLoading ? (
-                  <p className="text-sm text-neutral-500">Loading tasks...</p>
-                ) : tasksError ? (
-                  <p className="text-sm text-red-600">Unable to load tasks.</p>
-                ) : tasks.length === 0 ? (
-                  <p className="text-sm text-neutral-500">No tasks scheduled yet.</p>
-                ) : (
-                  <div className="grid gap-3">
-                    {tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        onDelete={deleteMutation.mutate}
-                        deleting={deleteMutation.isPending}
-                        onTrigger={triggerMutation.mutate}
-                        triggering={triggerMutation.isPending && triggerMutation.variables === task.id}
-                        isExpanded={expandedTaskId === task.id}
-                        onToggle={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
-                        logs={task.id === expandedTaskId ? logs : []}
-                        logsLoading={logsLoading}
-                        onEdit={handleEditTask}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-
-          </div>
-        </main>
-
-
-        {/* Settings Modal */}
-        {settingsOpen && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/40 backdrop-blur-sm"
-            onClick={() => setSettingsOpen(false)}
-          >
-
-            <div
-              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-white rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border border-black/5 overflow-hidden animate-in fade-in zoom-in duration-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-
-              <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-neutral-50/50">
-                <div>
-                  <h2 className="text-xl font-bold text-neutral-900">Default Settings</h2>
-                  <p className="text-xs text-neutral-500 mt-1">Configure global preferences for new tasks</p>
-                </div>
-                <button
-                  onClick={() => setSettingsOpen(false)}
-                  className="p-2 rounded-full hover:bg-neutral-200 transition-colors"
-                >
-                  <svg className="w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-
-                {/* AI Settings Group */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">AI Generation Defaults</h3>
-                  <div className="grid gap-4">
-                    <label className="grid gap-2 text-sm text-neutral-700">
-                      <span className="flex items-center justify-between">
-                        Default AI Model
-                        <a
-                          href="https://developers.cloudflare.com/workers-ai/models/"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
-                        >
-                          View supported models
-                        </a>
-                      </span>
-                      <input
-                        value={settingsDraft?.defaultAiModel || ''}
-                        onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultAiModel: e.target.value }) : null)}
-                        placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
-                        className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-neutral-700">
-                      <span>Default System Prompt</span>
-                      <textarea
-                        value={settingsDraft?.defaultAiSystemPrompt || ''}
-                        onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultAiSystemPrompt: e.target.value }) : null)}
-                        rows={3}
-                        placeholder="System prompt instructions..."
-                        className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-neutral-700">
-
-                      <span>Default Cron Schedule</span>
-                      <input
-                        value={settingsDraft?.defaultCron || ''}
-                        onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultCron: e.target.value }) : null)}
-                        placeholder="0 9 * * *"
-                        className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
-                      />
-                    </label>
-                  </div>
+                  )}
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${scheduleType === 'repeat'
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'bg-orange-50 text-orange-600'
+                    }`}>
+                    {scheduleType}
+                  </span>
                 </div>
 
-
-                {/* Pushover Settings Group */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Pushover Extras</h3>
-                    <div className="flex gap-2">
+                <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
+                  <div className="grid gap-2 text-sm text-neutral-700">
+                    <span>Content type</span>
+                    <div className="flex sm:inline-flex gap-1 rounded-2xl sm:rounded-full bg-neutral-100 p-1 w-full sm:w-fit">
                       <button
                         type="button"
-                        onClick={() => {
-                          try {
-                            const currentExtras = JSON.parse(settingsDraftExtrasText);
-                            setSettingsDraftExtrasText(JSON.stringify({ ...currentExtras, priority: 1, sound: 'alien' }, null, 2));
-                          } catch {
-                            setSettingsDraftExtrasText(JSON.stringify({ priority: 1, sound: 'alien' }, null, 2));
-                          }
-                        }}
-                        className="text-[10px] font-bold uppercase tracking-wider text-[#ff5530] hover:opacity-80"
+                        className={`flex-1 sm:flex-none rounded-xl sm:rounded-full px-4 py-2 text-xs font-semibold transition-all ${!form.aiPrompt && form.aiPrompt !== '' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
+                          }`}
+                        onClick={() => setForm((prev) => ({ ...prev, aiPrompt: undefined, aiModel: undefined, aiSystemPrompt: undefined }))}
                       >
-                        + Add Example Params
+                        Text
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 sm:flex-none rounded-xl sm:rounded-full px-4 py-2 text-xs font-semibold transition-all ${typeof form.aiPrompt === 'string' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
+                          }`}
+                        onClick={() => setForm((prev) => ({ ...prev, aiPrompt: '' }))}
+                      >
+                        AI Magic
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-neutral-600 mb-4">
-                    Merge these JSON parameters into every new notification by default.
-                  </p>
-                  <textarea
-                    value={settingsDraftExtrasText}
-                    onChange={(event) => setSettingsDraftExtrasText(event.target.value)}
-                    rows={4}
-                    className="w-full rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all"
-                    placeholder='{"sound": "pushover"}'
-                  />
-                </div>
 
+                  {typeof form.aiPrompt !== 'string' ? (
+                    <div className="grid gap-4">
+                      <label className="grid gap-2 text-sm text-neutral-700">
+                        <span>Message</span>
+                        <input
+                          value={form.message}
+                          onChange={(event) => setForm((prev) => ({ ...prev, message: event.target.value }))}
+                          placeholder="Your notification message"
+                          required
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-neutral-700">
+                        <span>Title (optional)</span>
+                        <input
+                          value={form.title ?? ''}
+                          onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                          placeholder="Short title"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      <label className="grid gap-2 text-sm text-neutral-700">
+                        <span>AI Prompt</span>
+                        <textarea
+                          value={form.aiPrompt ?? ''}
+                          onChange={(event) => setForm((prev) => ({ ...prev, aiPrompt: event.target.value }))}
+                          placeholder="Ask AI to generate message content"
+                          rows={2}
+                          required
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-neutral-700">
+                        <span>Title (optional)</span>
+                        <input
+                          value={form.title ?? ''}
+                          onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                          placeholder="Static notification title"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                        />
+                      </label>
+                      <div className="grid gap-4">
+                        <label className="grid gap-2 text-sm text-neutral-700">
+                          <span className="flex items-center justify-between">
+                            AI Model (optional)
+                            <a
+                              href="https://developers.cloudflare.com/workers-ai/models/"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
+                            >
+                              View supported models
+                            </a>
+                          </span>
+                          <input
+                            value={form.aiModel ?? ''}
+                            onChange={(event) => setForm((prev) => ({ ...prev, aiModel: event.target.value }))}
+                            placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                          />
+                        </label>
+                        <label className="grid gap-2 text-sm text-neutral-700">
+                          <span>AI System Prompt (optional)</span>
+                          <textarea
+                            value={form.aiSystemPrompt ?? ''}
+                            onChange={(event) => setForm((prev) => ({ ...prev, aiSystemPrompt: event.target.value }))}
+                            placeholder="You are a helpful assistant generating short notification messages. Always respond in the same language as the user's prompt."
+                            rows={2}
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
-                <div className="bg-neutral-50 rounded-2xl p-6 border border-black/5">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-neutral-800">Quick Reference</h3>
-                    <a
-                      className="text-[10px] font-bold text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
-                      href="https://pushover.net/api"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Pushover API docs
-                    </a>
+                  <div className="grid gap-2 text-sm text-neutral-700 mt-2">
+                    <span>Schedule type</span>
+                    <div className="flex sm:inline-flex gap-1 rounded-2xl sm:rounded-full bg-neutral-100 p-1 w-full sm:w-fit">
+                      <button
+                        type="button"
+                        className={`flex-1 sm:flex-none rounded-xl sm:rounded-full px-4 py-2 text-sm font-semibold transition-all ${scheduleType === 'once' ? 'bg-neutral-900 text-white shadow-md' : 'text-neutral-600'
+                          }`}
+                        onClick={() => setForm((prev) => ({ ...prev, schedule: { type: 'once' } }))}
+                      >
+                        Once
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 sm:flex-none rounded-xl sm:rounded-full px-4 py-2 text-sm font-semibold transition-all ${scheduleType === 'repeat' ? 'bg-neutral-900 text-white shadow-md' : 'text-neutral-600'
+                          }`}
+                        onClick={() => setForm((prev) => ({ ...prev, schedule: { type: 'repeat' } }))}
+                      >
+                        Repeat
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-neutral-500">
-                    <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span className="font-medium text-neutral-700">priority</span>
-                      <span>-2 to 2</span>
-                    </div>
-                    <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span className="font-medium text-neutral-700">sound</span>
-                      <span>tone name</span>
-                    </div>
-                    <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span className="font-medium text-neutral-700">device</span>
-                      <span>target device</span>
-                    </div>
-                    <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span className="font-medium text-neutral-700">html</span>
-                      <span>1 (enable)</span>
-                    </div>
-                    <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span className="font-medium text-neutral-700">url / url_title</span>
-                      <span>link</span>
-                    </div>
-                    <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span className="font-medium text-neutral-700">ttl</span>
-                      <span>seconds</span>
-                    </div>
-                  </div>
-                </div>
+                  {scheduleType === 'once' ? (
+                    <label className="grid gap-2 text-sm text-neutral-700">
+                      <div className="flex items-center justify-between">
+                        <span>Run at ({SERVER_TIMEZONE})</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            const offset = now.getTimezoneOffset() * 60000;
+                            const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
+                            setDatetimeValue(localISOTime);
+                          }}
+                          className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-neutral-900 transition-colors"
+                        >
+                          Set to Now
+                        </button>
+                      </div>
+                      <input
+                        type="datetime-local"
+                        value={datetimeValue}
+                        onChange={(event) => setDatetimeValue(event.target.value)}
+                        required
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                      />
+                    </label>
+                  ) : (
+                    <label className="grid gap-2 text-sm text-neutral-700">
+                      <div className="flex items-center justify-between">
+                        <span>Cron ({SERVER_TIMEZONE})</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleCronParse();
+                          }}
+                          disabled={isMagicLoading || !cronValue.trim()}
+                          className={`text-[10px] font-bold uppercase tracking-wider transition-all px-2 py-0.5 rounded-md ${isMagicLoading
+                            ? 'text-neutral-300 bg-neutral-100 cursor-not-allowed'
+                            : 'text-blue-500 bg-blue-50 hover:bg-blue-100'
+                            }`}
+                        >
+                          {isMagicLoading ? (
+                            <span className="flex items-center gap-1">
+                              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Parsing
+                            </span>
+                          ) : '✨ Parse Semantic'}
+                        </button>
+                      </div>
+                      <input
+                        value={cronValue}
+                        onChange={(event) => setCronValue(event.target.value)}
+                        placeholder="e.g. 'Every Monday at 9am' or '0 9 * * *'"
+                        required
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all placeholder:italic"
+                      />
+                    </label>
+                  )}
+                  <label className="grid gap-2 text-sm text-neutral-700">
+                    <span>Pushover extras (JSON)</span>
+                    <textarea
+                      value={form.pushoverJson}
+                      onChange={(event) => setForm(prev => ({ ...prev, pushoverJson: event.target.value }))}
+                      rows={4}
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                      placeholder={fetchedDefaultExtras ? JSON.stringify(fetchedDefaultExtras.defaultExtras, null, 2) : '{"sound":"pushover"}'}
+                    />
+
+                  </label>
 
 
-              </div>
-
-              <div className="px-8 py-6 border-t border-black/5 bg-neutral-50/50 flex gap-3">
-                <button
-                  onClick={() => {
-                    if (!settingsDraft) return;
-                    try {
-                      const parsedExtras = JSON.parse(settingsDraftExtrasText);
-                      const finalSettings: Settings = {
-                        ...settingsDraft,
-                        defaultExtras: parsedExtras
-                      };
-                      setDefaultExtrasMutation.mutate(finalSettings);
-                    } catch {
-                      alert('Invalid data: Please check your JSON syntax in Pushover Extras');
-                    }
-                  }}
-                  className="flex-1 rounded-2xl bg-neutral-900 px-6 py-4 text-sm font-bold text-white shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-50 active:scale-[0.98]"
-                  disabled={setDefaultExtrasMutation.isPending}
-                >
-                  {setDefaultExtrasMutation.isPending ? 'Saving Settings...' : 'Save Preferences'}
-                </button>
-
-                <button
-                  onClick={() => setSettingsOpen(false)}
-                  className="px-6 py-4 rounded-2xl border border-black/10 text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
+                  <button
+                    type="submit"
+                    className="rounded-2xl bg-linear-to-br from-[#ff7a59] to-[#ff5530] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(255,85,48,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={!isFormValid || createMutation.isPending || updateMutation.isPending}
+                  >
+                    {createMutation.isPending || updateMutation.isPending ? 'Saving...' : editingTaskId ? 'Update task' : 'Schedule notification'}
+                  </button>
+                  {createMutation.isError && !editingTaskId && (
+                    <p className="text-sm text-red-600">Failed to create task. Check worker logs.</p>
+                  )}
+                  {updateMutation.isError && editingTaskId && (
+                    <p className="text-sm text-red-600">Failed to update task. Check worker logs.</p>
+                  )}
+                </form>
+                <details className="mt-6 rounded-2xl border border-black/10 bg-[#f5f2ee] p-4 group/details">
+                  <summary className="flex items-center justify-between cursor-pointer list-none outline-none">
+                    <h3 className="text-sm font-semibold text-neutral-800">Payload preview</h3>
+                    <span className="text-[10px] font-bold text-neutral-400 group-open/details:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <pre className="mt-3 whitespace-pre-wrap text-xs text-neutral-700 font-mono">
+                    {JSON.stringify(payloadPreview, null, 2)}
+                  </pre>
+                </details>
+              </section>
 
             </div>
 
-          </div>
-        )}
+            {/* Tasks Tab Wrapper */}
+            <div className={activeTab === 'tasks' ? 'block' : 'hidden lg:block'}>
+              <div className="grid gap-6">
+                <section className="rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_24px_55px_rgba(19,21,26,0.12)]">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-neutral-900">Active tasks</h2>
+                    <button
+                      className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                      type="button"
+                      onClick={() => queryClient.invalidateQueries({ queryKey: ['tasks'] })}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="mt-5">
+                    {isTasksLoading ? (
+                      <p className="text-sm text-neutral-500">Loading tasks...</p>
+                    ) : tasksError ? (
+                      <p className="text-sm text-red-600">Unable to load tasks.</p>
+                    ) : tasks.length === 0 ? (
+                      <p className="text-sm text-neutral-500">No tasks scheduled yet.</p>
+                    ) : (
+                      <div className="grid gap-3">
+                        {tasks.map((task) => (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            onDelete={deleteMutation.mutate}
+                            deleting={deleteMutation.isPending}
+                            onTrigger={triggerMutation.mutate}
+                            triggering={triggerMutation.isPending && triggerMutation.variables === task.id}
+                            isExpanded={expandedTaskId === task.id}
+                            onToggle={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                            logs={task.id === expandedTaskId ? logs : []}
+                            logsLoading={logsLoading}
+                            onEdit={handleEditTask}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
 
-      </div>
-    </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Settings Tab View */}
+          {activeTab === 'settings' && (
+            <div className="lg:hidden rounded-[28px] border border-black/10 bg-white p-6 shadow-sm">
+              <div className="text-center py-10">
+                <p className="text-neutral-500 mb-4">Settings are available in the desktop view or via the popup.</p>
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="rounded-full bg-neutral-900 px-6 py-3 text-sm font-bold text-white"
+                >
+                  Open Full Settings
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-t border-black/5 pb-[env(safe-area-inset-bottom)] lg:hidden">
+          <div className="grid grid-cols-3 h-16 items-center">
+            <button
+              onClick={() => setActiveTab('tasks')}
+              className={`flex flex-col items-center justify-center gap-1 h-full ${activeTab === 'tasks' ? 'text-neutral-900' : 'text-neutral-400'}`}
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              <span className="text-[10px] font-bold uppercase tracking-wide">Tasks</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('create')}
+              className={`flex flex-col items-center justify-center gap-1 h-full ${activeTab === 'create' ? 'text-neutral-900' : 'text-neutral-400'}`}
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-[10px] font-bold uppercase tracking-wide">Create</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex flex-col items-center justify-center gap-1 h-full ${activeTab === 'settings' ? 'text-neutral-900' : 'text-neutral-400'}`}
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-[10px] font-bold uppercase tracking-wide">Settings</span>
+            </button>
+          </div>
+        </nav>
+
+
+        {/* Settings Modal */}
+        {
+          settingsOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/40 backdrop-blur-sm"
+              onClick={() => setSettingsOpen(false)}
+            >
+
+              <div
+                className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-white rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border border-black/5 overflow-hidden animate-in fade-in zoom-in duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+
+                <div className="px-8 py-6 border-b border-black/5 flex items-center justify-between bg-neutral-50/50">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">Default Settings</h2>
+                    <p className="text-xs text-neutral-500 mt-1">Configure global preferences for new tasks</p>
+                  </div>
+                  <button
+                    onClick={() => setSettingsOpen(false)}
+                    className="p-2 rounded-full hover:bg-neutral-200 transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+
+                  {/* AI Settings Group */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">AI Generation Defaults</h3>
+                    <div className="grid gap-4">
+                      <label className="grid gap-2 text-sm text-neutral-700">
+                        <span className="flex items-center justify-between">
+                          Default AI Model
+                          <a
+                            href="https://developers.cloudflare.com/workers-ai/models/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-medium text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
+                          >
+                            View supported models
+                          </a>
+                        </span>
+                        <input
+                          value={settingsDraft?.defaultAiModel || ''}
+                          onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultAiModel: e.target.value }) : null)}
+                          placeholder="@cf/meta/llama-3.1-8b-instruct-fast"
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-neutral-700">
+                        <span>Default System Prompt</span>
+                        <textarea
+                          value={settingsDraft?.defaultAiSystemPrompt || ''}
+                          onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultAiSystemPrompt: e.target.value }) : null)}
+                          rows={3}
+                          placeholder="System prompt instructions..."
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-neutral-700">
+
+                        <span>Default Cron Schedule</span>
+                        <input
+                          value={settingsDraft?.defaultCron || ''}
+                          onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, defaultCron: e.target.value }) : null)}
+                          placeholder="0 9 * * *"
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+
+                  {/* Pushover Settings Group */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Pushover Extras</h3>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              const currentExtras = JSON.parse(settingsDraftExtrasText);
+                              setSettingsDraftExtrasText(JSON.stringify({ ...currentExtras, priority: 1, sound: 'alien' }, null, 2));
+                            } catch {
+                              setSettingsDraftExtrasText(JSON.stringify({ priority: 1, sound: 'alien' }, null, 2));
+                            }
+                          }}
+                          className="text-[10px] font-bold uppercase tracking-wider text-[#ff5530] hover:opacity-80"
+                        >
+                          + Add Example Params
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-neutral-600 mb-4">
+                      Merge these JSON parameters into every new notification by default.
+                    </p>
+                    <textarea
+                      value={settingsDraftExtrasText}
+                      onChange={(event) => setSettingsDraftExtrasText(event.target.value)}
+                      rows={4}
+                      className="w-full rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all"
+                      placeholder='{"sound": "pushover"}'
+                    />
+                  </div>
+
+
+                  <div className="bg-neutral-50 rounded-2xl p-6 border border-black/5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold text-neutral-800">Quick Reference</h3>
+                      <a
+                        className="text-[10px] font-bold text-neutral-400 hover:text-neutral-900 underline underline-offset-2"
+                        href="https://pushover.net/api"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Pushover API docs
+                      </a>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-neutral-500">
+                      <div className="flex justify-between border-b border-black/5 pb-1">
+                        <span className="font-medium text-neutral-700">priority</span>
+                        <span>-2 to 2</span>
+                      </div>
+                      <div className="flex justify-between border-b border-black/5 pb-1">
+                        <span className="font-medium text-neutral-700">sound</span>
+                        <span>tone name</span>
+                      </div>
+                      <div className="flex justify-between border-b border-black/5 pb-1">
+                        <span className="font-medium text-neutral-700">device</span>
+                        <span>target device</span>
+                      </div>
+                      <div className="flex justify-between border-b border-black/5 pb-1">
+                        <span className="font-medium text-neutral-700">html</span>
+                        <span>1 (enable)</span>
+                      </div>
+                      <div className="flex justify-between border-b border-black/5 pb-1">
+                        <span className="font-medium text-neutral-700">url / url_title</span>
+                        <span>link</span>
+                      </div>
+                      <div className="flex justify-between border-b border-black/5 pb-1">
+                        <span className="font-medium text-neutral-700">ttl</span>
+                        <span>seconds</span>
+                      </div>
+                    </div>
+                  </div>
+
+
+                </div>
+
+                <div className="px-8 py-6 border-t border-black/5 bg-neutral-50/50 flex gap-3">
+                  <button
+                    onClick={() => {
+                      if (!settingsDraft) return;
+                      try {
+                        const parsedExtras = JSON.parse(settingsDraftExtrasText);
+                        const finalSettings: Settings = {
+                          ...settingsDraft,
+                          defaultExtras: parsedExtras
+                        };
+                        setDefaultExtrasMutation.mutate(finalSettings);
+                      } catch {
+                        alert('Invalid data: Please check your JSON syntax in Pushover Extras');
+                      }
+                    }}
+                    className="flex-1 rounded-2xl bg-neutral-900 px-6 py-4 text-sm font-bold text-white shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-50 active:scale-[0.98]"
+                    disabled={setDefaultExtrasMutation.isPending}
+                  >
+                    {setDefaultExtrasMutation.isPending ? 'Saving Settings...' : 'Save Preferences'}
+                  </button>
+
+                  <button
+                    onClick={() => setSettingsOpen(false)}
+                    className="px-6 py-4 rounded-2xl border border-black/10 text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+          )
+        }
+
+      </div >
+    </div >
   );
 }
 
@@ -966,31 +1030,31 @@ function TaskRow({
           </div>
 
           {/* Actions */}
-          <div className="flex flex-col gap-2 shrink-0 md:flex-row md:items-center">
+          <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 shrink-0 md:items-center">
             <button
-              className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-xl sm:rounded-full bg-emerald-600 px-3 sm:px-4 py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700 disabled:opacity-50"
               type="button"
               onClick={() => onTrigger(task.id)}
               disabled={triggering}
             >
-              {triggering ? 'Running...' : 'Run Now'}
+              {triggering ? '...' : 'Run Now'}
             </button>
             <button
-              className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
+              className="inline-flex items-center justify-center rounded-xl sm:rounded-full border border-black/10 px-3 sm:px-4 py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
               type="button"
               onClick={onToggle}
             >
-              {isExpanded ? 'Hide Logs' : 'Logs'}
+              {isExpanded ? 'Hide' : 'Logs'}
             </button>
             <button
-              className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
+              className="inline-flex items-center justify-center rounded-xl sm:rounded-full border border-black/10 px-3 sm:px-4 py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50"
               type="button"
               onClick={() => onEdit(task)}
             >
               Edit
             </button>
             <button
-              className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-neutral-800"
+              className="inline-flex items-center justify-center rounded-xl sm:rounded-full bg-neutral-900 px-3 sm:px-4 py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-white hover:bg-neutral-800"
               type="button"
               onClick={() => onDelete(task.id)}
               disabled={deleting}

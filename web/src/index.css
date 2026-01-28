@@ -11,6 +11,7 @@ body {
   color: #1b1a17;
   background: radial-gradient(circle at top, #fff6ea 0%, #f3f0eb 45%, #dfe5ef 100%);
   min-height: 100vh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 code, pre {
