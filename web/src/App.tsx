@@ -59,8 +59,6 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [showLogin, setShowLogin] = useState(false); // Default to false to prevent flicker
 
-  // Magic Input State
-  const [magicPrompt, setMagicPrompt] = useState('');
   const [isMagicLoading, setIsMagicLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
@@ -271,45 +269,21 @@ export default function App() {
   }, [cronValue, datetimeValue, form, scheduleType]);
 
 
-  const handleMagicSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!magicPrompt.trim()) return;
+  const handleCronParse = async () => {
+    if (!cronValue.trim()) return;
+    // If it already looks like a cron expression, don't bother or just proceed
+    if (cronValue.split(' ').length === 5 && /^[*0-9,/-]+$/.test(cronValue.replace(/\s+/g, ''))) {
+      return;
+    }
 
     setIsMagicLoading(true);
     try {
-      const result = await parseInput(magicPrompt);
-
-      setForm(prev => {
-        const next = {
-          ...prev,
-          ...result,
-          schedule: {
-            ...prev.schedule,
-            ...(result.schedule || {}),
-          },
-        };
-
-        // Ensure exclusivity
-        if (result.aiPrompt) {
-          next.message = '';
-        } else if (result.message) {
-          next.aiPrompt = undefined;
-        }
-
-        return next;
-      });
-
-      // Update local state helpers for inputs
-      if (result.schedule?.type === 'repeat' && result.schedule.cron) {
+      const result = await parseInput(cronValue);
+      if (result.schedule?.cron) {
         setCronValue(result.schedule.cron);
       }
-      if (result.schedule?.type === 'once' && result.schedule.datetime) {
-        setDatetimeValue(result.schedule.datetime);
-      }
-
     } catch (err) {
-      console.error('Magic input failed', err);
-      alert('Failed to process magic input');
+      console.error('Cron parse failed', err);
     } finally {
       setIsMagicLoading(false);
     }
@@ -470,53 +444,7 @@ export default function App() {
                 }`}>
                 {scheduleType}
               </span>
-
             </div>
-
-            {/* Magic Input Section */}
-            {!editingTaskId && (
-              <div className="mt-6 mb-2">
-                <form onSubmit={handleMagicSubmit} className="relative group">
-                  <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-lg transition-transform ${isListening ? 'animate-pulse scale-125' : 'group-focus-within:scale-110'}`}>
-                    {isListening ? '🎙️' : '✨'}
-                  </div>
-                  <input
-                    value={magicPrompt}
-                    onChange={(e) => setMagicPrompt(e.target.value)}
-                    placeholder={isListening ? "Listening..." : "Type naturally... e.g. 'Remind me to check oven in 10 mins'"}
-                    className={`w-full rounded-2xl border bg-neutral-50 py-3 pl-12 pr-20 text-sm font-medium text-neutral-800 placeholder-neutral-400 outline-none transition-all focus:bg-white shadow-[0_2px_10px_rgba(0,0,0,0.02)] ${isListening
-                      ? 'border-red-400 ring-2 ring-red-100 bg-red-50/50 placeholder-red-400'
-                      : 'border-black/10 focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900/10'
-                      }`}
-                    disabled={isMagicLoading || isListening}
-                  />
-
-                  {/* Actions: Fill Button (Text) OR Mic Button (Empty) */}
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    {magicPrompt.trim() ? (
-                      <button
-                        type="submit"
-                        disabled={isMagicLoading}
-                        className="rounded-xl bg-neutral-900 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-neutral-800 active:scale-95 animate-in fade-in slide-in-from-right-4"
-                      >
-                        {isMagicLoading ? '...' : 'Fill'}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setIsListening(!isListening)}
-                        className={`p-2 rounded-xl transition-all hover:bg-black/5 active:scale-95 ${isListening ? 'text-red-500 bg-red-50' : 'text-neutral-400 hover:text-neutral-600'}`}
-                        title="Voice Input"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </div>
-            )}
 
             <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
               <div className="grid gap-2 text-sm text-neutral-700">
@@ -667,13 +595,38 @@ export default function App() {
                 </label>
               ) : (
                 <label className="grid gap-2 text-sm text-neutral-700">
-                  <span>Cron ({SERVER_TIMEZONE})</span>
+                  <div className="flex items-center justify-between">
+                    <span>Cron ({SERVER_TIMEZONE})</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleCronParse();
+                      }}
+                      disabled={isMagicLoading || !cronValue.trim()}
+                      className={`text-[10px] font-bold uppercase tracking-wider transition-all px-2 py-0.5 rounded-md ${
+                        isMagicLoading 
+                          ? 'text-neutral-300 bg-neutral-100 cursor-not-allowed' 
+                          : 'text-blue-500 bg-blue-50 hover:bg-blue-100'
+                      }`}
+                    >
+                      {isMagicLoading ? (
+                        <span className="flex items-center gap-1">
+                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Parsing
+                        </span>
+                      ) : '✨ Parse Semantic'}
+                    </button>
+                  </div>
                   <input
                     value={cronValue}
                     onChange={(event) => setCronValue(event.target.value)}
-                    placeholder="0 9 * * *"
+                    placeholder="e.g. 'Every Monday at 9am' or '0 9 * * *'"
                     required
-                    className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all"
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-2 focus:ring-2 focus:ring-neutral-900 outline-none transition-all placeholder:italic"
                   />
                 </label>
               )}

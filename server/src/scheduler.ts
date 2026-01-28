@@ -202,26 +202,25 @@ export class SchedulerDO implements DurableObject {
       const currentTimeStr = localNow.toISOString();
       const localTimeStr = localNow.toLocaleString('en-US', { timeZone });
 
-      const systemPrompt = `You are a scheduling assistant. Convert a natural language request into a JSON object.
+      const systemPrompt = `You are a scheduling assistant. Your task is to extract repeating schedule patterns from natural language and return a JSON object containing a cron expression.
 Current Time (${timeZone}): ${localTimeStr} (ISO: ${currentTimeStr})
+
+Objective:
+Identify the repeating pattern (e.g., "every morning at 8", "weekly on Monday", "every 2 hours", "at 9am daily") and convert it into a standard 5-part cron string.
 
 JSON Schema:
 {
-  "title": "string (required, e.g. 'Task')",
-  "message": "string (the notification content)",
-  "aiPrompt": "string (if the user wants the content generated LATER by AI, e.g., 'tell me a joke' - put that here and LEAVE 'message' EMPTY)",
   "schedule": {
-    "type": "once" | "repeat",
-    "datetime": "ISO 8601 string (required if type='once', calculate from Current Time)",
-    "cron": "5-part cron string (required if type='repeat')"
+    "type": "repeat",
+    "cron": "5-part cron string (minute, hour, day, month, day-of-week)"
   }
 }
 
 Rules:
-1. One and only one of "message" or "aiPrompt" must be populated.
-2. For relative times like "in 5 minutes", use the Current Time to calculate an absolute ISO timestamp.
-3. For repeating tasks, generate a standard cron expression.
-4. Output NOTHING but the JSON object. No markdown, no triple backticks.`;
+1. Standard 5-part cron: Monday is 1, Sunday is 0 or 7.
+2. ONLY return the JSON object.
+3. If no repeating pattern is found, return an empty cron or a best guess repeat pattern.
+4. Be precise with cron syntax.`;
 
       try {
         const settings = await this.state.storage.get<Settings>('setting:global');
