@@ -26,6 +26,6 @@
   "dependencies": {
     "@date-fns/tz": "^1.4.1",
     "date-fns": "^4.1.0",
-    "hono": "^4.11.4"
+    "hono": "^4.11.7"
   }
 }
