@@ -1,0 +1,54 @@
+export type ScheduleType = 'once' | 'repeat';
+
+export interface ScheduleConfig {
+  type: ScheduleType;
+  datetime?: string;
+  cron?: string;
+}
+
+export interface ExecutionLog {
+  executedAt: string;
+  status: 'success' | 'failed';
+  response?: string;
+  error?: string;
+  aiGeneratedMessage?: string;
+}
+
+export interface Task {
+  id: string;
+  message: string;
+  title?: string;
+  aiPrompt?: string;
+  aiModel?: string;
+  aiSystemPrompt?: string;
+  schedule: ScheduleConfig;
+  pushover?: Record<string, string | number | boolean>;
+  createdAt: string;
+  lastRun?: string;
+  executionHistory?: ExecutionLog[];
+}
+
+export interface ScheduleRequest {
+  message: string;
+  title?: string;
+  aiPrompt?: string;
+  aiModel?: string;
+  aiSystemPrompt?: string;
+  schedule: ScheduleConfig;
+  pushover?: Record<string, string | number | boolean>;
+}
+
+export interface Settings {
+  defaultExtras: Record<string, string | number | boolean>;
+  defaultAiModel?: string;
+  defaultAiSystemPrompt?: string;
+  defaultCron?: string;
+}
+
+export type RootStackParamList = {
+  Login: undefined;
+  Main: undefined;
+  TaskDetail: { taskId: string };
+  CreateTask: { task?: Task } | undefined;
+  Settings: undefined;
+};

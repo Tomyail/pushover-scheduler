@@ -1,12 +1,29 @@
 import { Hono } from 'hono';
 import { setCookie, getCookie } from 'hono/cookie';
 import { sign, verify } from 'hono/jwt';
+import { cors } from 'hono/cors';
 import type { Env } from './types';
 import { SchedulerDO } from './scheduler';
 
 export { SchedulerDO };
 
 const app = new Hono<{ Bindings: Env }>();
+
+// CORS Middleware for API routes
+app.use('/api/*', cors({
+  origin: (origin) => {
+    // Allow any localhost port for development
+    if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return origin || '*';
+    }
+    // In production, you should restrict this to your actual domain
+    return origin;
+  },
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  exposeHeaders: ['Set-Cookie'],
+}));
 
 // Auth Middleware
 const authMiddleware = async (c: any, next: any) => {
